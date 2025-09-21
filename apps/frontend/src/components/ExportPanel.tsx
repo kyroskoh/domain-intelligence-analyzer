@@ -12,6 +12,7 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
+import { useChartColors } from '@/lib/chart-colors';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +39,9 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
   const { toast } = useToast();
+  
+  // Get theme-aware colors
+  const colors = useChartColors();
 
   // Transform analysis data to export format
   const exportData: ExportData = {
@@ -165,12 +169,12 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
       
       <CardContent className="space-y-6">
         {/* Data Summary */}
-        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.gridLines }}>
           <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-medium">{domain}</span>
+            <FileText className="h-4 w-4" style={{ color: colors.textSecondary }} />
+            <span className="text-sm font-medium" style={{ color: colors.text }}>{domain}</span>
           </div>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex items-center gap-3 text-sm" style={{ color: colors.textSecondary }}>
             <Badge variant="secondary" className="text-xs">
               {getDataSummary()}
             </Badge>
@@ -191,10 +195,10 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
               <FileDown className="h-5 w-5" />
               <div className="text-center">
                 <div className="font-medium">JSON</div>
-                <div className="text-xs text-gray-500">Raw data format</div>
+                <div className="text-xs" style={{ color: colors.textSecondary }}>Raw data format</div>
               </div>
               {isExporting === 'json' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded">
+                <div className="absolute inset-0 flex items-center justify-center rounded" style={{ backgroundColor: `${colors.background}CC` }}>
                   <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                 </div>
               )}
@@ -209,10 +213,10 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
               <Table className="h-5 w-5" />
               <div className="text-center">
                 <div className="font-medium">CSV</div>
-                <div className="text-xs text-gray-500">Spreadsheet format</div>
+                <div className="text-xs" style={{ color: colors.textSecondary }}>Spreadsheet format</div>
               </div>
               {isExporting === 'csv' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded">
+                <div className="absolute inset-0 flex items-center justify-center rounded" style={{ backgroundColor: `${colors.background}CC` }}>
                   <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                 </div>
               )}
@@ -227,10 +231,10 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
               <FileText className="h-5 w-5" />
               <div className="text-center">
                 <div className="font-medium">PDF</div>
-                <div className="text-xs text-gray-500">Report format</div>
+                <div className="text-xs" style={{ color: colors.textSecondary }}>Report format</div>
               </div>
               {isExporting === 'pdf' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/80 rounded">
+                <div className="absolute inset-0 flex items-center justify-center rounded" style={{ backgroundColor: `${colors.background}CC` }}>
                   <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
                 </div>
               )}
@@ -266,7 +270,7 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
 
         {/* Export Info */}
         <div className="border-t pt-4">
-          <div className="flex items-start gap-2 text-xs text-gray-600">
+          <div className="flex items-start gap-2 text-xs" style={{ color: colors.textSecondary }}>
             <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <div>
               <div className="font-medium mb-1">Export Information</div>

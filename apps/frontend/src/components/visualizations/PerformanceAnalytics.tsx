@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -162,6 +163,9 @@ const ResponseTimeChart: React.FC<{ data: PerformanceMetrics['responseTime']; cl
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Get theme-aware colors that update when theme changes
+  const colors = useChartColors();
 
   useEffect(() => {
     if (!svgRef.current || !data.history.length) return;
@@ -189,12 +193,34 @@ const ResponseTimeChart: React.FC<{ data: PerformanceMetrics['responseTime']; cl
       .range([height, 0]);
 
     // Add axes
-    g.append('g')
+    const xAxis = d3.axisBottom(xScale)
+      .tickFormat((d) => d3.timeFormat('%H:%M')(d as Date));
+    
+    const xAxisGroup = g.append('g')
       .attr('transform', `translate(0,${height})`)
-      .call(d3.axisBottom(xScale).tickFormat(d3.timeFormat('%H:%M')));
+      .call(xAxis);
 
-    g.append('g')
-      .call(d3.axisLeft(yScale).tickFormat(d => `${d}ms`));
+    // Style x-axis
+    xAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    xAxisGroup.selectAll('.tick line')
+      .style('stroke', colors.axis);
+    xAxisGroup.selectAll('text')
+      .style('fill', colors.textSecondary);
+
+    const yAxis = d3.axisLeft(yScale)
+      .tickFormat((d) => `${d}ms`);
+    
+    const yAxisGroup = g.append('g')
+      .call(yAxis);
+    
+    // Style y-axis
+    yAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    yAxisGroup.selectAll('.tick line')
+      .style('stroke', colors.gridLines);
+    yAxisGroup.selectAll('text')
+      .style('fill', colors.textSecondary);
 
     // Add line
     const line = d3.line<{ timestamp: Date; value: number }>()
@@ -253,8 +279,8 @@ const ResponseTimeChart: React.FC<{ data: PerformanceMetrics['responseTime']; cl
         const tooltip = d3.select('body').append('div')
           .attr('class', 'performance-tooltip')
           .style('position', 'absolute')
-          .style('background', 'rgba(0, 0, 0, 0.8)')
-          .style('color', 'white')
+          .style('background', colors.tooltip.background)
+          .style('color', colors.tooltip.text)
           .style('padding', '8px')
           .style('border-radius', '4px')
           .style('font-size', '12px')
@@ -276,7 +302,7 @@ const ResponseTimeChart: React.FC<{ data: PerformanceMetrics['responseTime']; cl
         d3.selectAll('.performance-tooltip').remove();
       });
 
-  }, [data]);
+  }, [data, colors]);
 
   return (
     <div ref={containerRef} className={className}>
@@ -331,6 +357,9 @@ const MetricCard: React.FC<{
 export function PerformanceAnalytics({ domain, className }: PerformanceAnalyticsProps) {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Get theme-aware colors for background styling
+  const colors = useChartColors();
 
   useEffect(() => {
     let isMounted = true;
@@ -636,7 +665,7 @@ export function PerformanceAnalytics({ domain, className }: PerformanceAnalytics
                     </div>
                   </div>
                   {metrics.uptime.lastDowntime && (
-                    <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                    <div className="mt-4 p-3 border border-yellow-200 rounded" style={{ backgroundColor: colors.gridLines }}>
                       <div className="flex items-center space-x-2">
                         <AlertTriangle className="h-4 w-4 text-yellow-600" />
                         <span className="text-sm">

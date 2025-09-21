@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 
 interface RiskLevelData {
   level: 'low' | 'medium' | 'high' | 'critical';
@@ -27,6 +28,9 @@ export default function RiskLevelPieChart({
   className = ''
 }: RiskLevelPieChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  
+  // Get theme-aware colors that update when theme changes
+  const themeColors = useChartColors();
 
   useEffect(() => {
     if (!breakdown || breakdown.length === 0) return;
@@ -89,7 +93,7 @@ export default function RiskLevelPieChart({
     arcs.append('path')
       .attr('d', arc)
       .attr('fill', d => colors[d.data.level])
-      .attr('stroke', '#fff')
+      .attr('stroke', themeColors.background)
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .style('opacity', 0.8)
@@ -103,8 +107,8 @@ export default function RiskLevelPieChart({
           .attr('class', 'risk-tooltip')
           .style('position', 'absolute')
           .style('padding', '10px')
-          .style('background', 'rgba(0, 0, 0, 0.8)')
-          .style('color', 'white')
+          .style('background', themeColors.tooltip.background)
+          .style('color', themeColors.tooltip.text)
           .style('border-radius', '4px')
           .style('font-size', '12px')
           .style('pointer-events', 'none')
@@ -155,7 +159,7 @@ export default function RiskLevelPieChart({
       .attr('text-anchor', 'middle')
       .attr('y', 8)
       .style('font-size', '12px')
-      .style('fill', '#666')
+      .style('fill', themeColors.textSecondary)
       .text('Overall Score');
 
     centerGroup.append('text')
@@ -173,6 +177,7 @@ export default function RiskLevelPieChart({
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
       .style('font-weight', 'bold')
+      .style('fill', themeColors.text)
       .text('Risk Level Distribution');
 
     // Add legend
@@ -203,7 +208,7 @@ export default function RiskLevelPieChart({
       .attr('x', 18)
       .attr('y', 9)
       .style('font-size', '11px')
-      .style('fill', '#333')
+      .style('fill', themeColors.text)
       .text(d => `${d.level.charAt(0).toUpperCase() + d.level.slice(1)} (${d.count})`);
 
     // Animate the chart with a simpler approach
@@ -218,7 +223,7 @@ export default function RiskLevelPieChart({
     return () => {
       d3.selectAll('.risk-tooltip').remove();
     };
-  }, [overallScore, riskLevel, breakdown, width, height]);
+  }, [overallScore, riskLevel, breakdown, width, height, themeColors]);
 
   if (!breakdown || breakdown.length === 0) {
     return (

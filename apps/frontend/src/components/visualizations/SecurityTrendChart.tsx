@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,9 @@ export function SecurityTrendChart({
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [selectedMetric, setSelectedMetric] = useState<'overall' | 'dns' | 'registration' | 'rdap'>('overall');
   const [trendData, setTrendData] = useState<SecurityDataPoint[]>([]);
+  
+  // Get theme-aware colors that update when theme changes
+  const colors = useChartColors();
 
   // Generate mock historical data (in real app, this would come from API)
   useEffect(() => {
@@ -155,22 +159,36 @@ export function SecurityTrendChart({
 
     // Add grid lines
     const xAxis = d3.axisBottom(xScale)
-      .tickFormat(d3.timeFormat('%m/%d'));
+      .tickFormat((d) => d3.timeFormat('%m/%d')(d as Date));
     
     const yAxis = d3.axisLeft(yScale)
       .tickSize(-width);
 
-    g.append('g')
+    const xAxisGroup = g.append('g')
       .attr('class', 'grid')
       .attr('transform', `translate(0,${height})`)
       .call(xAxis);
 
-    g.append('g')
+    // Style x-axis
+    xAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    xAxisGroup.selectAll('.tick line')
+      .style('stroke', colors.axis);
+    xAxisGroup.selectAll('text')
+      .style('fill', colors.textSecondary);
+
+    const yAxisGroup = g.append('g')
       .attr('class', 'grid')
-      .call(yAxis)
-      .selectAll('line')
-      .attr('stroke', '#e5e7eb')
+      .call(yAxis);
+    
+    // Style y-axis and grid lines
+    yAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    yAxisGroup.selectAll('.tick line')
+      .attr('stroke', colors.gridLines)
       .attr('stroke-width', 0.5);
+    yAxisGroup.selectAll('text')
+      .style('fill', colors.textSecondary);
 
     // Line generators
     const getScoreValue = (d: SecurityDataPoint) => {
@@ -222,7 +240,7 @@ export function SecurityTrendChart({
       .attr('cy', d => yScale(getScoreValue(d)))
       .attr('r', 4)
       .attr('fill', '#ef4444')
-      .attr('stroke', '#fff')
+      .attr('stroke', colors.background)
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
       .append('title')
@@ -238,7 +256,7 @@ export function SecurityTrendChart({
         .attr('fill', selectedMetric === 'overall' ? '#3b82f6' : 
                      selectedMetric === 'dns' ? '#10b981' : 
                      selectedMetric === 'registration' ? '#f59e0b' : '#8b5cf6')
-        .attr('stroke', '#fff')
+        .attr('stroke', colors.background)
         .attr('stroke-width', 3);
 
       // Add current score label
@@ -253,7 +271,7 @@ export function SecurityTrendChart({
         .text(getScoreValue(latestData));
     }
 
-  }, [trendData, selectedMetric]);
+  }, [trendData, selectedMetric, colors]);
 
   // Calculate trend metrics
   const getTrendMetrics = () => {
@@ -339,10 +357,10 @@ export function SecurityTrendChart({
 
           {/* Current Metrics Display */}
           {metrics && (
-            <div className="grid grid-cols-3 gap-4 p-3 bg-gray-50 rounded-lg">
+            <div className="grid grid-cols-3 gap-4 p-3 rounded-lg" style={{ backgroundColor: colors.gridLines }}>
               <div className="text-center">
                 <div className="text-2xl font-bold text-blue-600">{metrics.current}</div>
-                <div className="text-xs text-gray-600">Current Score</div>
+                <div className="text-xs" style={{ color: colors.textSecondary }}>Current Score</div>
               </div>
               <div className="text-center">
                 <div className={`text-2xl font-bold flex items-center justify-center gap-1 ${
@@ -353,7 +371,7 @@ export function SecurityTrendChart({
                   {metrics.trend === 'down' && <TrendingDown className="h-5 w-5" />}
                   {metrics.changePercent}%
                 </div>
-                <div className="text-xs text-gray-600">7-Day Change</div>
+                <div className="text-xs" style={{ color: colors.textSecondary }}>7-Day Change</div>
               </div>
               <div className="text-center">
                 <Badge 
@@ -369,7 +387,7 @@ export function SecurityTrendChart({
                    metrics.current >= 60 ? 'Medium Risk' :
                    metrics.current >= 40 ? 'High Risk' : 'Critical Risk'}
                 </Badge>
-                <div className="text-xs text-gray-600 mt-1">Risk Level</div>
+                <div className="text-xs mt-1" style={{ color: colors.textSecondary }}>Risk Level</div>
               </div>
             </div>
           )}
@@ -380,14 +398,15 @@ export function SecurityTrendChart({
               ref={svgRef}
               width="100%"
               height={400}
-              className="border rounded bg-white min-w-full"
+              className="border rounded min-w-full"
+              style={{ backgroundColor: colors.background }}
               viewBox="0 0 800 400"
             />
           </div>
 
           {/* Risk Level Legend */}
           <div className="flex items-center justify-center gap-4 pt-4 border-t">
-            <div className="text-sm font-medium text-gray-700 mr-2">Risk Levels:</div>
+            <div className="text-sm font-medium mr-2" style={{ color: colors.text }}>Risk Levels:</div>
             {[
               { level: 'Low (80-100)', color: '#22c55e' },
               { level: 'Medium (60-79)', color: '#f59e0b' },
@@ -411,7 +430,7 @@ export function SecurityTrendChart({
                 <AlertTriangle className="h-4 w-4 text-orange-500" />
                 <span className="text-sm font-medium">Security Events</span>
               </div>
-              <div className="text-xs text-gray-600">
+              <div className="text-xs" style={{ color: colors.textSecondary }}>
                 Red dots on the chart indicate days with security events. 
                 Hover over them for details.
               </div>
@@ -419,7 +438,7 @@ export function SecurityTrendChart({
           )}
 
           {trendData.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
               <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>No security trend data available</p>
               <p className="text-sm">Provide security analysis data to see trends</p>

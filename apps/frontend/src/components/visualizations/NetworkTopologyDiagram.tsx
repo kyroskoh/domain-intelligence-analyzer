@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,9 @@ export function NetworkTopologyDiagram({
   const [links, setLinks] = useState<NetworkLink[]>([]);
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null);
   const [isSimulating, setIsSimulating] = useState(false);
+  
+  // Get theme-aware colors that update when theme changes
+  const colors = useChartColors();
 
   // Process data to create network topology
   useEffect(() => {
@@ -246,7 +250,7 @@ export function NetworkTopologyDiagram({
       .attr('cx', 12)
       .attr('cy', -12)
       .attr('fill', d => statusColors[d.status])
-      .attr('stroke', '#fff')
+      .attr('stroke', colors.background)
       .attr('stroke-width', 1);
 
     // Add labels
@@ -255,15 +259,16 @@ export function NetworkTopologyDiagram({
       .attr('dy', '0.35em')
       .style('font-size', '12px')
       .style('font-weight', '500')
+      .style('fill', colors.text)
       .text(d => d.name.length > 20 ? d.name.substring(0, 17) + '...' : d.name);
 
     // Update positions on simulation tick
     simulation.on('tick', () => {
       link
-        .attr('x1', d => (d.source as NetworkNode).x!)
-        .attr('y1', d => (d.source as NetworkNode).y!)
-        .attr('x2', d => (d.target as NetworkNode).x!)
-        .attr('y2', d => (d.target as NetworkNode).y!);
+        .attr('x1', d => (d.source as any).x)
+        .attr('y1', d => (d.source as any).y)
+        .attr('x2', d => (d.target as any).x)
+        .attr('y2', d => (d.target as any).y);
 
       nodeGroup
         .attr('transform', d => `translate(${d.x},${d.y})`);
@@ -273,7 +278,7 @@ export function NetworkTopologyDiagram({
     return () => {
       simulation.stop();
     };
-  }, [nodes, links]);
+  }, [nodes, links, colors]);
 
   const getNodeIcon = (type: string) => {
     switch (type) {
@@ -342,14 +347,15 @@ export function NetworkTopologyDiagram({
               ref={svgRef}
               width="100%"
               height={600}
-              className="border rounded bg-gray-50 min-w-full"
+              className="border rounded min-w-full"
+              style={{ backgroundColor: colors.background }}
               viewBox="0 0 1000 600"
             />
           </div>
 
           {/* Node Details Panel */}
           {selectedNode && (
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border rounded-lg" style={{ backgroundColor: colors.background }}>
               <div className="flex items-start gap-3">
                 <div className="flex items-center gap-2">
                   {getNodeIcon(selectedNode.type)}
@@ -423,7 +429,7 @@ export function NetworkTopologyDiagram({
           {/* Legend */}
           <div className="grid grid-cols-2 gap-4 pt-4 border-t">
             <div>
-              <div className="text-sm font-medium text-gray-700 mb-2">Node Types:</div>
+              <div className="text-sm font-medium mb-2" style={{ color: colors.text }}>Node Types:</div>
               <div className="space-y-1">
                 {[
                   { type: 'domain', label: 'Domain', color: '#3b82f6' },
@@ -443,7 +449,7 @@ export function NetworkTopologyDiagram({
             </div>
             
             <div>
-              <div className="text-sm font-medium text-gray-700 mb-2">Connection Types:</div>
+              <div className="text-sm font-medium mb-2" style={{ color: colors.text }}>Connection Types:</div>
               <div className="space-y-1">
                 {[
                   { type: 'dns', label: 'DNS Resolution', color: '#10b981' },
@@ -463,7 +469,7 @@ export function NetworkTopologyDiagram({
           </div>
 
           {nodes.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
               <Network className="h-12 w-12 mx-auto mb-2 opacity-50" />
               <p>No network topology available</p>
               <p className="text-sm">Provide domain data to see network relationships</p>
@@ -471,7 +477,7 @@ export function NetworkTopologyDiagram({
           )}
 
           {/* Instructions */}
-          <div className="text-xs text-gray-500 pt-2 border-t">
+          <div className="text-xs pt-2 border-t" style={{ color: colors.textSecondary }}>
             <p>Click and drag nodes to reposition them. Click on nodes to view details.</p>
           </div>
         </CardContent>

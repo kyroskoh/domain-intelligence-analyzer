@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Calendar, Clock, AlertCircle } from 'lucide-react';
@@ -102,6 +103,9 @@ export function DomainTimelineChart({
     setEvents(timelineEvents);
   }, [domain, whoisData, dnsData, securityData]);
 
+  // Get theme-aware colors that update when theme changes
+  const colors = useChartColors();
+
   // D3 Timeline Visualization with Zoom and Pan
   useEffect(() => {
     if (!svgRef.current || events.length === 0) return;
@@ -174,9 +178,9 @@ export function DomainTimelineChart({
       timelinePath.enter()
         .append('path')
         .attr('class', 'timeline-path')
-        .merge(timelinePath)
+        .merge(timelinePath as any)
         .attr('fill', 'none')
-        .attr('stroke', '#e5e7eb')
+        .attr('stroke', colors.gridLines)
         .attr('stroke-width', 2)
         .attr('d', line);
     };
@@ -190,13 +194,20 @@ export function DomainTimelineChart({
       // Dynamic tick count based on zoom level
       const tickCount = Math.max(3, Math.min(10, Math.floor(width / 100)));
       const xAxis = d3.axisBottom(xScale)
-        .tickFormat(d3.timeFormat('%Y-%m-%d'))
+        .tickFormat((d) => d3.timeFormat('%Y-%m-%d')(d as Date))
         .ticks(tickCount);
 
-      xAxisG.call(xAxis)
-        .selectAll('text')
+      xAxisG.call(xAxis);
+      
+      // Style axis elements
+      xAxisG.select('.domain')
+        .style('stroke', colors.axis);
+      xAxisG.selectAll('.tick line')
+        .style('stroke', colors.axis);
+      xAxisG.selectAll('text')
         .style('text-anchor', 'end')
         .style('font-size', '11px')
+        .style('fill', colors.textSecondary)
         .attr('dx', '-.8em')
         .attr('dy', '.15em')
         .attr('transform', 'rotate(-45)');
@@ -231,8 +242,8 @@ export function DomainTimelineChart({
             .join('div')
             .attr('class', 'timeline-tooltip')
             .style('position', 'absolute')
-            .style('background', 'rgba(0, 0, 0, 0.8)')
-            .style('color', 'white')
+            .style('background', colors.tooltip.background)
+            .style('color', colors.tooltip.text)
             .style('padding', '8px')
             .style('border-radius', '4px')
             .style('font-size', '12px')
@@ -269,7 +280,7 @@ export function DomainTimelineChart({
       eventEnter.append('circle')
         .attr('r', 6)
         .attr('fill', d => colorScale(d.type) as string)
-        .attr('stroke', '#fff')
+        .attr('stroke', colors.background)
         .attr('stroke-width', 2);
       
       // Add event labels with better positioning
@@ -278,7 +289,7 @@ export function DomainTimelineChart({
         .attr('dy', '0.35em')
         .style('font-size', '12px')
         .style('font-weight', '500')
-        .style('fill', '#374151')
+        .style('fill', colors.text)
         .style('pointer-events', 'none')
         .text(d => {
           // Truncate long titles to prevent overflow
@@ -292,11 +303,11 @@ export function DomainTimelineChart({
         .attr('cx', 8)
         .attr('cy', -8)
         .attr('fill', d => d.severity === 'high' ? '#ef4444' : '#f59e0b')
-        .attr('stroke', '#fff')
+        .attr('stroke', colors.background)
         .attr('stroke-width', 1);
       
       // Update positions for all events (new and existing)
-      const eventUpdate = eventEnter.merge(eventGroups);
+      const eventUpdate = eventEnter.merge(eventGroups as any);
       eventUpdate
         .attr('transform', (d, i) => 
           `translate(${xScale(d.date)}, ${yScale(i.toString())! + yScale.bandwidth() / 2})`
@@ -341,8 +352,8 @@ export function DomainTimelineChart({
     resetButton.append('rect')
       .attr('width', 80)
       .attr('height', 24)
-      .attr('fill', '#f3f4f6')
-      .attr('stroke', '#d1d5db')
+      .attr('fill', colors.background)
+      .attr('stroke', colors.gridLines)
       .attr('rx', 4);
     
     resetButton.append('text')
@@ -350,7 +361,7 @@ export function DomainTimelineChart({
       .attr('y', 16)
       .attr('text-anchor', 'middle')
       .style('font-size', '12px')
-      .style('fill', '#374151')
+      .style('fill', colors.text)
       .text('Reset View');
 
     // Initial render
@@ -364,7 +375,7 @@ export function DomainTimelineChart({
       .attr('y', -5)
       .attr('text-anchor', 'middle')
       .style('font-size', '12px')
-      .style('fill', '#6b7280')
+      .style('fill', colors.textSecondary)
       .style('font-weight', '400')
       .text('🖱️ Click and drag to pan • Scroll to zoom • Click events for details');
     
@@ -374,7 +385,7 @@ export function DomainTimelineChart({
       d3.select('body').selectAll('.timeline-tooltip').remove();
     };
 
-  }, [events]);
+  }, [events, colors]);
 
   const getEventTypeIcon = (type: string) => {
     switch (type) {
@@ -418,8 +429,8 @@ export function DomainTimelineChart({
         <CardContent className="space-y-4">
           <div 
             ref={containerRef}
-            className="w-full overflow-hidden border rounded bg-gray-50"
-            style={{ height: '400px' }}
+            className="w-full overflow-hidden border rounded"
+            style={{ height: '400px', backgroundColor: colors.background }}
           >
             <svg
               ref={svgRef}
@@ -432,7 +443,7 @@ export function DomainTimelineChart({
 
           {/* Event Details Panel */}
           {selectedEvent && (
-            <div className="p-4 border rounded-lg bg-white">
+            <div className="p-4 border rounded-lg" style={{ backgroundColor: colors.background }}>
               <div className="flex items-start gap-3">
                 <div className="flex items-center gap-2">
                   {getEventTypeIcon(selectedEvent.type)}
@@ -454,10 +465,10 @@ export function DomainTimelineChart({
               </div>
               <div className="mt-2">
                 <h4 className="font-semibold">{selectedEvent.title}</h4>
-                <p className="text-sm text-gray-600 mt-1">
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
                   {selectedEvent.description}
                 </p>
-                <p className="text-xs text-gray-500 mt-2">
+                <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>
                   {selectedEvent.date.toLocaleDateString('en-US', {
                     weekday: 'long',
                     year: 'numeric',
@@ -471,7 +482,7 @@ export function DomainTimelineChart({
 
           {/* Event Legend */}
           <div className="flex flex-wrap gap-2 pt-4 border-t">
-            <div className="text-sm font-medium text-gray-700 mr-4">Event Types:</div>
+            <div className="text-sm font-medium mr-4" style={{ color: colors.text }}>Event Types:</div>
             {[
               { type: 'creation', label: 'Creation', color: '#22c55e' },
               { type: 'update', label: 'Update', color: '#3b82f6' },

@@ -2,6 +2,7 @@
 
 import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
+import { useChartColors } from '@/lib/chart-colors';
 
 interface SecurityCategory {
   category: string;
@@ -39,6 +40,9 @@ export default function SecurityScoreChart({
     window.addEventListener('resize', updateDimensions);
     return () => window.removeEventListener('resize', updateDimensions);
   }, [height]);
+
+  // Get theme-aware colors that update when theme changes
+  const colors = useChartColors();
 
   useEffect(() => {
     if (!data || data.length === 0) return;
@@ -102,7 +106,7 @@ export default function SecurityScoreChart({
       .attr('text-anchor', 'middle')
       .style('font-size', '12px')
       .style('font-weight', 'bold')
-      .style('fill', '#333')
+      .style('fill', colors.text)
       .style('opacity', 0)
       .text(d => `${d.score}`)
       .transition()
@@ -112,23 +116,41 @@ export default function SecurityScoreChart({
 
     // Add x-axis
     const xAxis = d3.axisBottom(xScale);
-    g.append('g')
+    const xAxisGroup = g.append('g')
       .attr('class', 'x-axis')
       .attr('transform', `translate(0,${chartHeight})`)
-      .call(xAxis)
-      .selectAll('text')
+      .call(xAxis);
+    
+    // Style x-axis line and ticks
+    xAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    xAxisGroup.selectAll('.tick line')
+      .style('stroke', colors.axis);
+    
+    // Style x-axis text
+    xAxisGroup.selectAll('text')
       .style('font-size', '11px')
+      .style('fill', colors.textSecondary)
       .style('text-anchor', 'middle')
       .attr('dy', '1em');
 
     // Add y-axis
     const yAxis = d3.axisLeft(yScale)
       .tickFormat(d => `${d}%`);
-    g.append('g')
+    const yAxisGroup = g.append('g')
       .attr('class', 'y-axis')
-      .call(yAxis)
-      .selectAll('text')
-      .style('font-size', '11px');
+      .call(yAxis);
+    
+    // Style y-axis line and ticks
+    yAxisGroup.select('.domain')
+      .style('stroke', colors.axis);
+    yAxisGroup.selectAll('.tick line')
+      .style('stroke', colors.axis);
+    
+    // Style y-axis text
+    yAxisGroup.selectAll('text')
+      .style('font-size', '11px')
+      .style('fill', colors.textSecondary);
 
     // Add y-axis label
     g.append('text')
@@ -139,6 +161,7 @@ export default function SecurityScoreChart({
       .style('text-anchor', 'middle')
       .style('font-size', '12px')
       .style('font-weight', 'bold')
+      .style('fill', colors.text)
       .text('Security Score (%)');
 
     // Add title
@@ -148,6 +171,7 @@ export default function SecurityScoreChart({
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
       .style('font-weight', 'bold')
+      .style('fill', colors.text)
       .text('Security Score Breakdown by Category');
 
     // Add tooltips
@@ -156,8 +180,8 @@ export default function SecurityScoreChart({
       .attr('class', 'tooltip')
       .style('position', 'absolute')
       .style('padding', '10px')
-      .style('background', 'rgba(0, 0, 0, 0.8)')
-      .style('color', 'white')
+      .style('background', colors.tooltip.background)
+      .style('color', colors.tooltip.text)
       .style('border-radius', '4px')
       .style('font-size', '12px')
       .style('pointer-events', 'none')
@@ -176,13 +200,13 @@ export default function SecurityScoreChart({
         .style('top', (event.pageY - 10) + 'px');
       
       d3.select(event.currentTarget)
-        .attr('stroke', '#333')
+        .attr('stroke', colors.text)
         .attr('stroke-width', 2);
     })
     .on('mouseout', (event) => {
       tooltip.transition().duration(200).style('opacity', 0);
       d3.select(event.currentTarget)
-        .attr('stroke', '#fff')
+        .attr('stroke', colors.background)
         .attr('stroke-width', 1);
     });
 
@@ -190,7 +214,7 @@ export default function SecurityScoreChart({
     return () => {
       d3.selectAll('.tooltip').remove();
     };
-  }, [data, dimensions.width, dimensions.height]);
+  }, [data, dimensions.width, dimensions.height, colors]);
 
   if (!data || data.length === 0) {
     return (
