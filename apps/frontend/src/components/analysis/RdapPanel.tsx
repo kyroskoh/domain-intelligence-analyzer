@@ -216,7 +216,7 @@ export default function RdapPanel({ data, isLoading, compact = false, className 
               <div className="text-sm">
                 {data.nameservers.map((ns, index) => (
                   <div key={index} className="font-mono">
-                    {ns.ldhName || ns.unicodeName || ns}
+                    {typeof ns === 'string' ? ns : ns.ldhName || ns.unicodeName || 'Unknown'}
                   </div>
                 ))}
               </div>

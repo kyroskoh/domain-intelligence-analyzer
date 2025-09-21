@@ -6,18 +6,20 @@ interface ToastProps {
   variant?: 'default' | 'destructive';
 }
 
-export function useToast() {
-  const toast = ({ title, description, variant = 'default' }: ToastProps) => {
-    const message = title && description ? `${title}: ${description}` : title || description || '';
-    
-    if (variant === 'destructive') {
-      sonnerToast.error(message);
-    } else {
-      sonnerToast.success(message);
-    }
-  };
+const toast = ({ title, description, variant = 'default' }: ToastProps) => {
+  const message = title && description ? `${title}: ${description}` : title || description || '';
+  
+  if (variant === 'destructive') {
+    sonnerToast.error(message);
+  } else {
+    sonnerToast.success(message);
+  }
+};
 
+export function useToast() {
   return { toast };
 }
 
+// Export the toast function directly as well
+export { toast };
 export { toast as sonnerToast } from 'sonner';

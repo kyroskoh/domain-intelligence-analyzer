@@ -9,7 +9,7 @@ import {
   Shield, 
   Database,
   Network,
-  Refresh,
+  RefreshCw as Refresh,
   Download,
   Eye
 } from 'lucide-react';
@@ -183,7 +183,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           icon={<Shield className="h-4 w-4" />}
           isLoading={domainAnalysis.isLoading}
           hasError={!!domainAnalysis.error}
-          data={domainAnalysis.data?.securityAnalysis}
+          data={domainAnalysis.data?.security}
           onClick={() => setActiveView('details')}
         />
       </div>
@@ -203,7 +203,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} compact />
             <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} compact />
             <SecurityPanel 
-              data={domainAnalysis.data?.securityAnalysis} 
+              data={domainAnalysis.data?.security} 
               isLoading={domainAnalysis.isLoading} 
               compact 
             />
@@ -216,7 +216,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} />
             <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} />
             <SecurityPanel 
-              data={domainAnalysis.data?.securityAnalysis} 
+              data={domainAnalysis.data?.security} 
               isLoading={domainAnalysis.isLoading} 
             />
           </div>

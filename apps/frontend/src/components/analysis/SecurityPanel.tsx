@@ -8,22 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
-
-// Type for security analysis data (to be defined in API types)
-interface SecurityAnalysis {
-  overallScore: number;
-  riskLevel: 'low' | 'medium' | 'high' | 'critical';
-  checks: {
-    ssl?: { passed: boolean; score: number; details: string };
-    dnssec?: { passed: boolean; score: number; details: string };
-    reputation?: { passed: boolean; score: number; details: string };
-    malware?: { passed: boolean; score: number; details: string };
-    phishing?: { passed: boolean; score: number; details: string };
-    blacklist?: { passed: boolean; score: number; details: string };
-  };
-  recommendations: string[];
-  lastChecked: string;
-}
+import { SecurityAnalysis } from '@/lib/api';
 
 interface SecurityPanelProps {
   data?: SecurityAnalysis;
@@ -105,40 +90,10 @@ export default function SecurityPanel({ data, isLoading, compact = false, classN
     return 'bg-red-500';
   };
 
-  const renderSecurityCheck = (name: string, check: any) => {
-    if (!check) return null;
-
-    const Icon = check.passed ? CheckCircle : XCircle;
-    const iconColor = check.passed ? 'text-green-500' : 'text-red-500';
-
-    return (
-      <div className="flex items-center justify-between p-3 border rounded-lg">
-        <div className="flex items-center space-x-3">
-          <Icon className={cn("h-5 w-5", iconColor)} />
-          <div>
-            <div className="font-medium capitalize">{name.replace(/([A-Z])/g, ' $1')}</div>
-            {!compact && check.details && (
-              <div className="text-xs text-muted-foreground">{check.details}</div>
-            )}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className={cn("font-bold", getScoreColor(check.score))}>
-            {check.score}/100
-          </div>
-          {!compact && (
-            <Badge variant={check.passed ? "default" : "destructive"} className="text-xs">
-              {check.passed ? "Pass" : "Fail"}
-            </Badge>
-          )}
-        </div>
-      </div>
-    );
-  };
 
   const riskColors = getRiskLevelColor(data.riskLevel);
-  const checksArray = Object.entries(data.checks).filter(([_, check]) => check);
-  const passedChecks = checksArray.filter(([_, check]) => check.passed).length;
+  const checksArray = data.breakdown?.flatMap(category => category.checks) || [];
+  const passedChecks = checksArray.filter(check => check.status === 'pass').length;
 
   return (
     <Card className={className}>
@@ -187,16 +142,29 @@ export default function SecurityPanel({ data, isLoading, compact = false, classN
         <div className="space-y-2">
           <h4 className="font-semibold text-sm">Security Checks</h4>
           <div className="space-y-2">
-            {compact 
-              ? checksArray.slice(0, 3).map(([name, check]) => renderSecurityCheck(name, check))
-              : checksArray.map(([name, check]) => renderSecurityCheck(name, check))
-            }
+            {data.breakdown?.map((category, categoryIndex) => (
+              <div key={category.category} className="space-y-1">
+                <h5 className="text-xs font-medium text-muted-foreground">{category.category}</h5>
+                {(compact ? category.checks.slice(0, 2) : category.checks).map((check, checkIndex) => (
+                  <div key={`${categoryIndex}-${checkIndex}`} className="flex items-center justify-between p-2 border rounded-lg text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className={`w-2 h-2 rounded-full ${
+                        check.status === 'pass' ? 'bg-green-500' :
+                        check.status === 'fail' ? 'bg-red-500' :
+                        check.status === 'warn' ? 'bg-yellow-500' : 'bg-blue-500'
+                      }`} />
+                      <span>{check.name}</span>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn("font-bold text-xs", getScoreColor(check.score))}>
+                        {check.score}/100
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )) || null}
           </div>
-          {compact && checksArray.length > 3 && (
-            <p className="text-xs text-muted-foreground">
-              +{checksArray.length - 3} more security checks
-            </p>
-          )}
         </div>
 
         {/* Recommendations */}
@@ -211,7 +179,7 @@ export default function SecurityPanel({ data, isLoading, compact = false, classN
                 <Alert key={index} className="py-2">
                   <Info className="h-4 w-4" />
                   <AlertDescription className="text-sm">
-                    {recommendation}
+                    {recommendation.title}: {recommendation.description}
                   </AlertDescription>
                 </Alert>
               ))}
@@ -237,7 +205,7 @@ export default function SecurityPanel({ data, isLoading, compact = false, classN
             <Alert className="py-2">
               <Info className="h-4 w-4" />
               <AlertDescription className="text-sm">
-                {data.recommendations[0]}
+                {data.recommendations[0].title}: {data.recommendations[0].description}
               </AlertDescription>
             </Alert>
             {data.recommendations.length > 1 && (

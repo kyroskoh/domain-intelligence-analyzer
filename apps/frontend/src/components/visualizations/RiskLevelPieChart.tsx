@@ -206,21 +206,13 @@ export default function RiskLevelPieChart({
       .style('fill', '#333')
       .text(d => `${d.level.charAt(0).toUpperCase() + d.level.slice(1)} (${d.count})`);
 
-    // Animate the chart
+    // Animate the chart with a simpler approach
     arcs.select('path')
-      .datum((d) => ({ startAngle: 0, endAngle: 0, ...d }))
+      .style('opacity', 0)
       .transition()
       .duration(1000)
       .delay((_, i) => i * 100)
-      .attrTween('d', function(d) {
-        const interpolate = d3.interpolate(
-          { startAngle: 0, endAngle: 0 },
-          { startAngle: d.startAngle, endAngle: d.endAngle }
-        );
-        return function(t) {
-          return arc({ ...d, ...interpolate(t) } as any) || '';
-        };
-      });
+      .style('opacity', 1);
 
     // Cleanup on unmount
     return () => {

@@ -10,6 +10,13 @@ export interface DomainAnalysisRequest {
   includeSecurityAnalysis?: boolean;
 }
 
+export interface DomainAnalysisOptions {
+  includeWhois?: boolean;
+  includeRdap?: boolean;
+  includeDns?: boolean;
+  includeSecurityAnalysis?: boolean;
+}
+
 export interface DomainAnalysisResponse {
   domain: string;
   analyzedAt: string;
@@ -232,9 +239,11 @@ export interface DnssecInfo {
 
 export interface SecurityAnalysis {
   overallScore: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
   breakdown: SecurityCategory[];
   recommendations: SecurityRecommendation[];
   risks: SecurityRisk[];
+  lastChecked: string;
 }
 
 export interface SecurityCategory {
@@ -295,7 +304,7 @@ export interface HealthStatus {
 // API Client Class
 class ApiClient {
   private baseURL: string;
-  private client: typeof axios;
+  private client: ReturnType<typeof axios.create>;
 
   constructor() {
     this.baseURL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001';

@@ -108,7 +108,7 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
         { label: 'Updated Date', value: formatDate(data.updatedDate), icon: <Clock className="h-4 w-4" /> },
         { label: 'Expiry Date', value: formatDate(data.expiryDate), icon: <Calendar className="h-4 w-4" /> },
         { label: 'Status', value: data.status?.join(', '), icon: null },
-        { label: 'Name Servers', value: data.nameServers?.join(', '), icon: null },
+        { label: 'Name Servers', value: data.nameservers?.join(', '), icon: null },
       ];
 
   return (
@@ -149,7 +149,12 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
                   "text-right max-w-[200px] break-words",
                   compact && "text-sm"
                 )}>
-                  {Array.isArray(value) ? value.join(', ') : value}
+                  {Array.isArray(value) 
+                    ? value.join(', ') 
+                    : typeof value === 'object' && value !== null
+                    ? JSON.stringify(value)
+                    : String(value || 'N/A')
+                  }
                 </div>
               </div>
             );

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 export interface DomainSearchState {
   currentDomain: string;
@@ -17,10 +17,9 @@ const MAX_HISTORY_ITEMS = 20;
 
 export function useDomainSearch() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   
-  // Initialize state from URL parameters
-  const initialDomain = searchParams.get('domain') || '';
+  // Initialize with empty domain - URL sync will be added later if needed
+  const initialDomain = '';
   
   const [state, setState] = useState<DomainSearchState>({
     currentDomain: initialDomain,
@@ -57,17 +56,13 @@ export function useDomainSearch() {
       searchError: isValid ? undefined : 'Please enter a valid domain name',
     }));
 
-    // Update URL without navigation
-    const params = new URLSearchParams(searchParams);
+    // Update URL without navigation (simplified for now)
     if (trimmedDomain) {
-      params.set('domain', trimmedDomain);
+      router.replace(`?domain=${encodeURIComponent(trimmedDomain)}`, { scroll: false });
     } else {
-      params.delete('domain');
+      router.replace('/', { scroll: false });
     }
-    
-    const newUrl = params.toString() ? `?${params.toString()}` : '';
-    router.replace(newUrl, { scroll: false });
-  }, [router, searchParams]);
+  }, [router]);
 
   // Add domain to search history
   const addToHistory = useCallback((domain: string) => {

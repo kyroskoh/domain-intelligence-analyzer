@@ -28,4 +28,4 @@ export {
 } from './useAppState';
 
 // Re-export common UI hooks
-export { useToast } from './use-toast';
+export { useToast, toast } from './use-toast';
