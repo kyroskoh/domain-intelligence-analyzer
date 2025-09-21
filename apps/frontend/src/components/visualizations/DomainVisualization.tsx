@@ -6,6 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SecurityScoreChart from './SecurityScoreChart';
 import RiskLevelPieChart from './RiskLevelPieChart';
+import { DomainTimelineChart } from './DomainTimelineChart';
+import { NetworkTopologyDiagram } from './NetworkTopologyDiagram';
+import { SecurityTrendChart } from './SecurityTrendChart';
+import { BarChart3, TrendingUp, Network, Calendar, Shield } from 'lucide-react';
 
 interface SecurityAnalysis {
   overallScore: number;
@@ -68,7 +72,7 @@ export default function DomainVisualization({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <span>📊</span>
+              <BarChart3 className="h-5 w-5" />
               <span>Domain Visualizations</span>
             </CardTitle>
             <CardDescription>
@@ -77,7 +81,7 @@ export default function DomainVisualization({
           </CardHeader>
           <CardContent className="flex items-center justify-center h-64">
             <div className="text-center text-muted-foreground">
-              <div className="text-6xl mb-4">🔍</div>
+              <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-semibold">No Data Available</p>
               <p className="text-sm">Run a domain analysis to see visualizations</p>
             </div>
@@ -89,20 +93,19 @@ export default function DomainVisualization({
 
   return (
     <div className={`space-y-6 ${className}`}>
-      {/* Security Visualizations */}
-      {securityData && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center space-x-2">
-                  <span>🔒</span>
-                  <span>Security Analysis</span>
-                </CardTitle>
-                <CardDescription>
-                  Visual breakdown of domain security metrics and risk assessment
-                </CardDescription>
-              </div>
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center space-x-2">
+                <BarChart3 className="h-5 w-5" />
+                <span>Advanced Visualizations - {domain}</span>
+              </CardTitle>
+              <CardDescription>
+                Interactive charts and analysis tools powered by D3.js
+              </CardDescription>
+            </div>
+            {securityData && (
               <div className="flex items-center space-x-2">
                 <Badge variant="outline" className="text-lg font-bold">
                   {securityData.overallScore}/100
@@ -111,14 +114,42 @@ export default function DomainVisualization({
                   {securityData.riskLevel.toUpperCase()} RISK
                 </Badge>
               </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="breakdown" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="breakdown">Score Breakdown</TabsTrigger>
-                <TabsTrigger value="risk-distribution">Risk Distribution</TabsTrigger>
-              </TabsList>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="security" className="w-full">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="security" className="flex items-center gap-1">
+                <Shield className="h-4 w-4" />
+                Security
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className="flex items-center gap-1">
+                <Calendar className="h-4 w-4" />
+                Timeline
+              </TabsTrigger>
+              <TabsTrigger value="network" className="flex items-center gap-1">
+                <Network className="h-4 w-4" />
+                Network
+              </TabsTrigger>
+              <TabsTrigger value="trends" className="flex items-center gap-1">
+                <TrendingUp className="h-4 w-4" />
+                Trends
+              </TabsTrigger>
+              <TabsTrigger value="performance" className="flex items-center gap-1">
+                <BarChart3 className="h-4 w-4" />
+                Performance
+              </TabsTrigger>
+            </TabsList>
+
+            {/* Security Analysis Tab */}
+            <TabsContent value="security" className="space-y-6">
+              {securityData ? (
+                <Tabs defaultValue="breakdown" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="breakdown">Score Breakdown</TabsTrigger>
+                    <TabsTrigger value="risk-distribution">Risk Distribution</TabsTrigger>
+                  </TabsList>
 
               <TabsContent value="breakdown" className="mt-6">
                 <div className="flex justify-center">
@@ -202,54 +233,85 @@ export default function DomainVisualization({
                   </Card>
                 </div>
               </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
+                </Tabs>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No security analysis data available</p>
+                </div>
+              )}
+            </TabsContent>
 
-      {/* DNS Visualization Placeholder */}
-      {dnsData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <span>🌐</span>
-              <span>DNS Infrastructure</span>
-            </CardTitle>
-            <CardDescription>
-              Interactive DNS record visualization and nameserver health
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center h-48">
-            <div className="text-center text-muted-foreground">
-              <div className="text-4xl mb-2">🚧</div>
-              <p className="font-semibold">DNS Network Graph</p>
-              <p className="text-sm">Coming soon with D3.js force-directed visualization</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            {/* Domain Timeline Tab */}
+            <TabsContent value="timeline" className="space-y-6">
+              <DomainTimelineChart 
+                domain={domain}
+                whoisData={whoisData}
+                dnsData={dnsData}
+                securityData={securityData}
+              />
+            </TabsContent>
 
-      {/* Domain Timeline Placeholder */}
-      {whoisData && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <span>📅</span>
-              <span>Domain Timeline</span>
-            </CardTitle>
-            <CardDescription>
-              Registration history and important dates visualization
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex items-center justify-center h-48">
-            <div className="text-center text-muted-foreground">
-              <div className="text-4xl mb-2">⏳</div>
-              <p className="font-semibold">Timeline Visualization</p>
-              <p className="text-sm">Coming soon with registration and expiry timeline</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+            {/* Network Topology Tab */}
+            <TabsContent value="network" className="space-y-6">
+              <NetworkTopologyDiagram 
+                domain={domain}
+                whoisData={whoisData}
+                dnsData={dnsData}
+                rdapData={rdapData}
+              />
+            </TabsContent>
+
+            {/* Security Trends Tab */}
+            <TabsContent value="trends" className="space-y-6">
+              <SecurityTrendChart 
+                domain={domain}
+                securityData={securityData}
+              />
+            </TabsContent>
+
+            {/* Performance Tab (Coming Soon) */}
+            <TabsContent value="performance" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Performance Analytics
+                  </CardTitle>
+                  <CardDescription>
+                    Real-time performance monitoring and historical analysis
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="text-center text-gray-500">
+                    <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
+                    <h3 className="text-lg font-semibold mb-2">Performance Metrics</h3>
+                    <p>Real-time monitoring dashboards coming soon</p>
+                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 border rounded-lg">
+                        <div className="text-xs text-gray-500">Response Time</div>
+                        <div className="text-lg font-bold">Coming Soon</div>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <div className="text-xs text-gray-500">Uptime</div>
+                        <div className="text-lg font-bold">Coming Soon</div>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <div className="text-xs text-gray-500">DNS Speed</div>
+                        <div className="text-lg font-bold">Coming Soon</div>
+                      </div>
+                      <div className="p-4 border rounded-lg">
+                        <div className="text-xs text-gray-500">SSL Score</div>
+                        <div className="text-lg font-bold">Coming Soon</div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
