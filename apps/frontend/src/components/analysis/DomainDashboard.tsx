@@ -32,6 +32,7 @@ import WhoisPanel from './WhoisPanel';
 import RdapPanel from './RdapPanel';
 import DnsPanel from './DnsPanel';
 import SecurityPanel from './SecurityPanel';
+import DomainVisualization from '../visualizations/DomainVisualization';
 
 interface DomainDashboardProps {
   domain: string;
@@ -222,11 +223,13 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         </TabsContent>
 
         <TabsContent value="visualizations">
-          <div className="text-center py-12">
-            <Eye className="h-16 w-16 mx-auto text-muted-foreground" />
-            <h3 className="text-lg font-semibold mt-4">Visualizations</h3>
-            <p className="text-muted-foreground">Interactive charts and graphs will be displayed here</p>
-          </div>
+          <DomainVisualization 
+            domain={domain}
+            whoisData={whoisData.data}
+            dnsData={dnsData.data}
+            rdapData={rdapData.data}
+            securityData={domainAnalysis.data?.security}
+          />
         </TabsContent>
 
         <TabsContent value="raw">
