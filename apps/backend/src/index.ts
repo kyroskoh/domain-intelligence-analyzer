@@ -23,6 +23,7 @@ import dnsRoutes from '@/routes/dns';
 import whoisRoutes from '@/routes/whois';
 import rdapRoutes from '@/routes/rdap';
 import healthRoutes from '@/routes/health';
+import monitoringRoutes, { setWebSocketService } from '@/routes/monitoring';
 
 const app: Application = express();
 const server = createServer(app);
@@ -31,6 +32,9 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Initialize WebSocket service
 const wsService = new WebSocketService(server);
+
+// Inject WebSocket service into monitoring routes
+setWebSocketService(wsService);
 
 // Swagger configuration
 const swaggerOptions = {
@@ -127,6 +131,7 @@ app.use('/api/analyze', analysisRoutes);
 app.use('/api/dns', dnsRoutes);
 app.use('/api/whois', whoisRoutes);
 app.use('/api/rdap', rdapRoutes);
+app.use('/api/monitoring', monitoringRoutes);
 
 // Serve API spec as JSON
 app.get('/api-docs.json', (req, res) => {

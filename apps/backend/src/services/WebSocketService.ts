@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import { logger } from '@/utils/logger';
+import LiveDnsMonitoringService from './LiveDnsMonitoringService';
 
 interface ClientData {
   id: string;
@@ -24,6 +25,7 @@ class WebSocketService {
   private clients: Map<string, ClientData>;
   private subscriptions: Map<string, Set<MonitoringSubscription>>;
   private monitoringIntervals: Map<string, NodeJS.Timeout>;
+  private dnsMonitoringService: LiveDnsMonitoringService;
 
   constructor(server: HttpServer) {
     this.clients = new Map();
@@ -43,6 +45,9 @@ class WebSocketService {
 
     this.setupEventHandlers();
     this.startCleanupInterval();
+    
+    // Initialize DNS monitoring service after WebSocket setup
+    this.dnsMonitoringService = new LiveDnsMonitoringService(this);
     
     logger.info('🔌 WebSocket service initialized');
   }
@@ -195,6 +200,15 @@ class WebSocketService {
       return; // Already monitoring
     }
 
+    // Start DNS monitoring service for this domain
+    this.dnsMonitoringService.startMonitoring(domain, {
+      checkInterval: 5 * 60 * 1000, // 5 minutes
+      alertThresholds: {
+        ttlWarning: 300, // 5 minutes
+        criticalChanges: ['A', 'AAAA', 'NS']
+      }
+    });
+
     // Start periodic monitoring (every 5 minutes)
     const interval = setInterval(() => {
       this.performDomainCheck(domain);
@@ -208,6 +222,9 @@ class WebSocketService {
   }
 
   private stopDomainMonitoring(domain: string): void {
+    // Stop DNS monitoring service
+    this.dnsMonitoringService.stopMonitoring(domain);
+    
     const interval = this.monitoringIntervals.get(domain);
     if (interval) {
       clearInterval(interval);
@@ -325,6 +342,7 @@ class WebSocketService {
   }
 
   public getStats(): any {
+    const dnsStats = this.dnsMonitoringService.getStats();
     return {
       connectedClients: this.getConnectedClientsCount(),
       monitoredDomains: this.getMonitoredDomainsCount(),
@@ -332,7 +350,17 @@ class WebSocketService {
         (total, subs) => total + subs.size,
         0
       ),
+      dnsMonitoring: dnsStats,
     };
+  }
+  
+  // DNS Monitoring integration methods
+  public getDnsMonitoringService(): LiveDnsMonitoringService {
+    return this.dnsMonitoringService;
+  }
+
+  public getDomainDnsStatus(domain: string): any {
+    return this.dnsMonitoringService.getDomainStatus(domain);
   }
 }
 
