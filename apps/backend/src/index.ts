@@ -2,12 +2,15 @@ import 'module-alias/register';
 import 'dotenv/config';
 import 'express-async-errors';
 import express, { Application } from 'express';
+import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+
+import WebSocketService from '@/services/WebSocketService';
 
 import { errorHandler } from '@/middleware/errorHandler';
 import { notFoundHandler } from '@/middleware/notFoundHandler';
@@ -22,8 +25,12 @@ import rdapRoutes from '@/routes/rdap';
 import healthRoutes from '@/routes/health';
 
 const app: Application = express();
+const server = createServer(app);
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Initialize WebSocket service
+const wsService = new WebSocketService(server);
 
 // Swagger configuration
 const swaggerOptions = {
@@ -127,6 +134,11 @@ app.get('/api-docs.json', (req, res) => {
   res.send(swaggerSpec);
 });
 
+// WebSocket stats endpoint
+app.get('/api/websocket/stats', (req, res) => {
+  res.json(wsService.getStats());
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -134,6 +146,7 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     docs: '/docs',
     health: '/health',
+    websocket: '/api/websocket/stats',
   });
 });
 
@@ -142,9 +155,10 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Start server
-const server = app.listen(PORT, () => {
+server.listen(PORT, () => {
   logger.info(`🚀 Server running on port ${PORT} in ${NODE_ENV} mode`);
   logger.info(`📚 API Documentation available at http://localhost:${PORT}/docs`);
+  logger.info(`🔌 WebSocket service available at ws://localhost:${PORT}`);
 });
 
 // Graceful shutdown

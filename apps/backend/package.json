@@ -15,6 +15,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@types/socket.io": "^3.0.1",
     "axios": "^1.6.0",
     "cors": "^2.8.5",
     "dns-socket": "^4.2.2",
@@ -29,6 +30,7 @@
     "node-cache": "^5.1.2",
     "rdap-client": "^1.0.5",
     "redis": "^5.8.2",
+    "socket.io": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.0",
     "uuid": "^9.0.1",
