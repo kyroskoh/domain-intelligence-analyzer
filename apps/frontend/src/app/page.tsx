@@ -6,6 +6,7 @@ import DomainSearch from '@/components/analysis/DomainSearch';
 import DomainDashboard from '@/components/analysis/DomainDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { useHealth, useDomainSearch, useAppState } from '@/hooks';
 
 export default function Home() {
@@ -39,6 +40,9 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-2">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               {/* Connection Status */}
               <Badge 
                 variant={connectionStatus === 'online' ? 'default' : 'destructive'}
