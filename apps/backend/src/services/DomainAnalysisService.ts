@@ -4,6 +4,7 @@ import { WhoisService } from './whois/WhoisService';
 import { DnsService } from './dns/DnsService';
 import { RdapService } from './rdap/RdapService';
 import { CacheService } from './cache/CacheService';
+import { SecurityAnalysisService } from './security/SecurityAnalysisService';
 import { 
   DomainAnalysisRequest, 
   DomainAnalysisResponse, 
@@ -18,12 +19,14 @@ export class DomainAnalysisService {
   private dnsService: DnsService;
   private rdapService: RdapService;
   private cacheService: CacheService;
+  private securityService: SecurityAnalysisService;
 
   constructor() {
     this.whoisService = new WhoisService();
     this.dnsService = new DnsService();
     this.rdapService = new RdapService();
     this.cacheService = new CacheService();
+    this.securityService = new SecurityAnalysisService();
   }
 
   /**
@@ -131,8 +134,12 @@ export class DomainAnalysisService {
       // Perform security analysis if requested
       if (request.includeSecurityAnalysis !== false && (response.dns || response.whois || response.rdap)) {
         try {
-          // TODO: Implement security analysis
-          meta.warnings.push('Security analysis not yet implemented');
+          const securityAnalysis = await this.securityService.analyzeSecurity(domain, {
+            whois: response.whois,
+            dns: response.dns,
+            rdap: response.rdap,
+          });
+          response.security = securityAnalysis;
         } catch (error) {
           meta.errors.push(`Security analysis failed: ${(error as Error).message}`);
         }
