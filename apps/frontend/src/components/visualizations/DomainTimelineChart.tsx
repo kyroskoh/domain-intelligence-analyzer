@@ -132,9 +132,16 @@ export function DomainTimelineChart({
       .attr('width', width)
       .attr('height', height);
 
-    // Create scales
+    // Create scales with padding for better visibility
+    const timeExtent = d3.extent(events, d => d.date) as [Date, Date];
+    const timePadding = (timeExtent[1].getTime() - timeExtent[0].getTime()) * 0.1; // 10% padding
+    const paddedDomain: [Date, Date] = [
+      new Date(timeExtent[0].getTime() - timePadding),
+      new Date(timeExtent[1].getTime() + timePadding)
+    ];
+    
     const originalXScale = d3.scaleTime()
-      .domain(d3.extent(events, d => d.date) as [Date, Date])
+      .domain(paddedDomain)
       .range([0, width]);
 
     let xScale = originalXScale;
@@ -180,13 +187,16 @@ export function DomainTimelineChart({
       .attr('transform', `translate(0,${height})`);
 
     const updateXAxis = () => {
+      // Dynamic tick count based on zoom level
+      const tickCount = Math.max(3, Math.min(10, Math.floor(width / 100)));
       const xAxis = d3.axisBottom(xScale)
         .tickFormat(d3.timeFormat('%Y-%m-%d'))
-        .ticks(d3.timeMonth.every(1));
+        .ticks(tickCount);
 
       xAxisG.call(xAxis)
         .selectAll('text')
         .style('text-anchor', 'end')
+        .style('font-size', '11px')
         .attr('dx', '-.8em')
         .attr('dy', '.15em')
         .attr('transform', 'rotate(-45)');
@@ -208,7 +218,7 @@ export function DomainTimelineChart({
         .on('click', (event, d) => {
           setSelectedEvent(d);
         })
-        .on('mouseenter', function() {
+        .on('mouseenter', function(event, d) {
           d3.select(this).select('circle')
             .transition()
             .duration(200)
@@ -262,14 +272,18 @@ export function DomainTimelineChart({
         .attr('stroke', '#fff')
         .attr('stroke-width', 2);
       
-      // Add event labels
+      // Add event labels with better positioning
       eventEnter.append('text')
         .attr('dx', 12)
         .attr('dy', '0.35em')
         .style('font-size', '12px')
         .style('font-weight', '500')
         .style('fill', '#374151')
-        .text(d => d.title);
+        .style('pointer-events', 'none')
+        .text(d => {
+          // Truncate long titles to prevent overflow
+          return d.title.length > 20 ? d.title.substring(0, 17) + '...' : d.title;
+        });
       
       // Add severity indicators
       eventEnter.filter(d => d.severity && d.severity !== 'low')
@@ -289,10 +303,10 @@ export function DomainTimelineChart({
         );
     };
 
-    // Zoom behavior
+    // Zoom behavior with better constraints
     const zoom = d3.zoom()
-      .scaleExtent([0.5, 10])
-      .translateExtent([[-100, -100], [width + 100, height + 100]])
+      .scaleExtent([0.1, 20])
+      .translateExtent([[-200, -50], [width + 200, height + 50]])
       .on('zoom', (event) => {
         const { transform } = event;
         setZoomTransform(transform);
@@ -351,7 +365,14 @@ export function DomainTimelineChart({
       .attr('text-anchor', 'middle')
       .style('font-size', '12px')
       .style('fill', '#6b7280')
+      .style('font-weight', '400')
       .text('🖱️ Click and drag to pan • Scroll to zoom • Click events for details');
+    
+    // Cleanup function
+    return () => {
+      // Remove any lingering tooltips
+      d3.select('body').selectAll('.timeline-tooltip').remove();
+    };
 
   }, [events]);
 
