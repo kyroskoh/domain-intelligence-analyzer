@@ -20,6 +20,12 @@ A production-grade web application that provides comprehensive domain analysis i
 
 ### Interactive Visualizations
 - **D3.js Powered Charts**: Interactive domain relationship graphs and score breakdowns
+- **Theme-Aware Design**: Automatic light/dark theme adaptation for all visualizations
+- **Security Score Charts**: Bar charts with weighted security category breakdowns
+- **Risk Distribution**: Pie charts showing risk level distribution across categories
+- **Domain Timeline**: Interactive timeline of domain events with zoom/pan capabilities
+- **Network Topology**: Force-directed graphs showing domain infrastructure relationships
+- **Performance Analytics**: Real-time response time charts and availability metrics
 - **Domain Hierarchy Visualization**: Root → Nameservers → Records → IPs mapping
 - **Health Status Indicators**: Color-coded visual representation of domain health
 - **Real-time Data Updates**: Live monitoring and analysis capabilities
@@ -50,10 +56,12 @@ domain-intelligence-analyzer/
 - Next.js 15 with App Router
 - React 19 with TypeScript
 - TailwindCSS 4 for styling
-- D3.js for data visualizations
+- D3.js for interactive data visualizations
+- Theme-aware chart system with automatic light/dark mode switching
 - Three.js for animations
 - React Query for data fetching
 - Framer Motion for UI animations
+- next-themes for seamless theme management
 
 **Backend**
 - Express.js with TypeScript
@@ -122,8 +130,13 @@ npm run docker:down
    - Domain registration details (WHOIS/RDAP)
    - DNS record breakdown
    - Security score and recommendations
-   - Interactive visualizations
+   - Interactive theme-aware visualizations
    - Nameserver health status
+   - Export options in multiple formats
+
+#### Testing Chart Themes
+
+Visit `http://localhost:3000/test-charts` to test all visualization components with theme switching capabilities.
 
 ### API Usage
 
@@ -139,10 +152,52 @@ curl -X GET "http://localhost:3001/api/export/example.com.pdf"
 ```
 
 ### API Documentation
+Visit `http://localhost:3000/docs` for interactive Swagger documentation.
 
-Visit `http://localhost:3001/docs` for interactive Swagger documentation.
+## 🎨 Theme System
+
+### Automatic Theme Adaptation
+
+The application features a comprehensive theme system that automatically adapts all visualizations and UI components for optimal viewing in both light and dark modes.
+
+#### Chart Theme Features
+- **Real-time Switching**: Charts instantly adapt when users toggle between light/dark themes
+- **Proper Contrast**: All text and visual elements maintain proper contrast ratios for accessibility
+- **Color Consistency**: Uses a unified color palette across all D3.js visualizations
+- **Background Adaptation**: Chart backgrounds, tooltips, and panels automatically adjust
+
+#### Supported Components
+- Security Score Charts (bar charts with category breakdowns)
+- Risk Level Pie Charts (risk distribution visualization)
+- Domain Timeline Charts (interactive timeline with zoom/pan)
+- Network Topology Diagrams (force-directed graph layouts)
+- Performance Analytics Charts (response time and availability metrics)
+- Security Trend Charts (historical security score tracking)
+
+#### Theme Testing
+
+Visit `/test-charts` to interactively test all chart components:
+
+```bash
+# Start development server
+npm run dev
+
+# Navigate to theme testing page
+# http://localhost:3000/test-charts
+```
+
+### Technical Implementation
+
+The theme system uses:
+- `useChartColors()` React hook for real-time theme detection
+- CSS custom properties for seamless theme transitions
+- D3.js dynamic color application for SVG elements
+- next-themes integration for persistent theme preferences
 
 ## 🧪 Testing
+## 🧪 Testing
+
+### Automated Testing
 
 ```bash
 # Run all tests
@@ -159,21 +214,40 @@ npm run test:frontend
 npm run test:backend
 ```
 
+### Interactive Chart Testing
+
+```bash
+# Start development server
+npm run dev
+
+# Visit chart testing page
+# http://localhost:3000/test-charts
+```
+
+The test page includes:
+- All visualization components with mock data
+- Theme toggle for testing light/dark mode transitions
+- Interactive elements to verify responsiveness
+- Performance monitoring for chart rendering
+
 ## 🛠️ Development
 
 ### Project Structure
 
 ```
-apps/frontend/src/
+```
+aps/frontend/src/
 ├── app/                   # Next.js App Router pages
+│   └── test-charts/       # Chart testing and theme validation page
 ├── components/            # Reusable React components
 │   ├── analysis/          # Domain analysis components
+│   ├── theme/             # Theme management components
 │   ├── ui/                # Base UI components
-│   └── visualizations/    # D3.js visualization components
+│   └── visualizations/    # D3.js visualization components (theme-aware)
 ├── hooks/                 # Custom React hooks
 ├── lib/                   # Utility functions and API clients
+│   └── chart-colors.ts    # Theme-aware color system for charts
 └── types/                 # TypeScript type definitions
-
 apps/backend/src/
 ├── controllers/           # Request handlers
 ├── services/              # Business logic
@@ -286,16 +360,19 @@ The application is designed to be deployed on:
 
 ### Phase 1: Core MVP (Current)
 - [x] Basic project setup and architecture
-- [ ] WHOIS/RDAP lookup engine
-- [ ] DNS analysis engine
-- [ ] Basic web interface
-- [ ] Security scoring system
+- [x] Interactive D3.js visualizations with theme support
+- [x] Theme-aware chart system (light/dark mode)
+- [x] Security scoring system
+- [x] Export functionality (JSON, CSV, PDF)
+- [ ] WHOIS/RDAP lookup engine (in progress)
+- [ ] DNS analysis engine (in progress)
+- [ ] Complete web interface integration
 
 ### Phase 2: Advanced Features
-- [ ] Interactive D3.js visualizations
+- [x] Interactive D3.js visualizations
 - [ ] Real-time monitoring
 - [ ] Historical data tracking
-- [ ] Advanced export options
+- [x] Advanced export options
 - [ ] API rate limiting and authentication
 
 ### Phase 3: Enterprise Features
