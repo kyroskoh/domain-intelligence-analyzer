@@ -168,9 +168,11 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
           <CardDescription>Domain Name System configuration</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {primaryRecords.slice(0, 3).map(record => 
-            renderDnsRecord(record.label, record.records || [])
-          )}
+          {primaryRecords.slice(0, 3).map(record => (
+            <div key={record.key}>
+              {renderDnsRecord(record.label, record.records || [])}
+            </div>
+          ))}
           {recordTypes.length > 3 && (
             <p className="text-xs text-muted-foreground">
               +{recordTypes.length - 3} more record types
@@ -212,17 +214,21 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
 
           <TabsContent value="overview" className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {primaryRecords.map(record => 
-                renderDnsRecord(record.label, record.records || [])
-              )}
+              {primaryRecords.map(record => (
+                <div key={record.key}>
+                  {renderDnsRecord(record.label, record.records || [])}
+                </div>
+              ))}
             </div>
           </TabsContent>
 
           <TabsContent value="records" className="space-y-4 mt-4">
             <div className="space-y-4">
-              {recordTypes.map(record => 
-                renderDnsRecord(record.label, record.records || [])
-              )}
+              {recordTypes.map(record => (
+                <div key={record.key}>
+                  {renderDnsRecord(record.label, record.records || [])}
+                </div>
+              ))}
             </div>
           </TabsContent>
 
@@ -235,7 +241,9 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
                     <h4 className="font-semibold">Nameserver Health</h4>
                   </div>
                   <div className="space-y-2">
-                    {data.nameserverHealth.map(renderNameserverHealth)}
+                    {data.nameserverHealth.map((nameserver, index) => 
+                      renderNameserverHealth(nameserver, index)
+                    )}
                   </div>
                 </div>
               ) : (
