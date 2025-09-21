@@ -19,20 +19,23 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { 
+import {
   useDomainAnalysis, 
   useWhoisData, 
   useRdapData, 
   useDnsData, 
   useClearDomainCache,
-  useAppState 
+  useAppState
 } from '@/hooks';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import WhoisPanel from './WhoisPanel';
 import RdapPanel from './RdapPanel';
 import DnsPanel from './DnsPanel';
 import SecurityPanel from './SecurityPanel';
 import DomainVisualization from '../visualizations/DomainVisualization';
+import { ExportPanel } from '@/components/ExportPanel';
+import { exportToJSON } from '@/lib/export';
 
 interface DomainDashboardProps {
   domain: string;
@@ -42,6 +45,7 @@ interface DomainDashboardProps {
 export default function DomainDashboard({ domain, className }: DomainDashboardProps) {
   const { activeView, setActiveView, settings } = useAppState();
   const clearCacheMutation = useClearDomainCache();
+  const { toast } = useToast();
 
   // Fetch all domain data
   const domainAnalysis = useDomainAnalysis(domain, {
@@ -76,26 +80,30 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
   };
 
   const handleExportData = () => {
-    const exportData = {
-      domain,
-      timestamp: new Date().toISOString(),
-      analysis: domainAnalysis.data,
-      whois: whoisData.data,
-      rdap: rdapData.data,
-      dns: dnsData.data,
-    };
+    try {
+      const exportData = {
+        domain,
+        timestamp: new Date().toISOString(),
+        whois: whoisData.data,
+        rdap: rdapData.data,
+        dns: dnsData.data,
+        security: domainAnalysis.data?.security
+      };
 
-    const dataStr = JSON.stringify(exportData, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    const url = URL.createObjectURL(dataBlob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${domain}-analysis-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      exportToJSON(exportData);
+      
+      toast({
+        title: "Export Successful",
+        description: `Domain analysis exported as JSON file.`
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "Failed to export data. Please try again."
+      });
+    }
   };
 
   return (
@@ -190,10 +198,11 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
 
       {/* Main Content Tabs */}
       <Tabs value={activeView} onValueChange={(value) => setActiveView(value as any)}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="visualizations">Visualizations</TabsTrigger>
+          <TabsTrigger value="export">Export</TabsTrigger>
           <TabsTrigger value="raw">Raw Data</TabsTrigger>
         </TabsList>
 
@@ -230,6 +239,29 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             rdapData={rdapData.data}
             securityData={domainAnalysis.data?.security}
           />
+        </TabsContent>
+
+        <TabsContent value="export">
+          <div className="space-y-4">
+            <ExportPanel
+              domain={domain}
+              analysisData={{
+                domain,
+                analyzedAt: new Date().toISOString(),
+                meta: {
+                  requestId: 'client-generated',
+                  duration: 0,
+                  cached: false,
+                  errors: [],
+                  warnings: []
+                },
+                whois: whoisData.data,
+                rdap: rdapData.data,
+                dns: dnsData.data,
+                security: domainAnalysis.data?.security
+              }}
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="raw">
