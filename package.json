@@ -1,0 +1,56 @@
+{
+  "name": "domain-intelligence-analyzer",
+  "version": "1.0.0",
+  "description": "Production-grade Domain Intelligence Analyzer with WHOIS/RDAP/DNS analysis, interactive D3.js visualizations, and comprehensive security scoring",
+  "keywords": ["domain", "whois", "rdap", "dns", "security", "analysis", "visualization", "d3", "threejs", "nextjs"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyroskoh/domain-intelligence-analyzer.git"
+  },
+  "author": "Kyros Koh",
+  "license": "MIT",
+  "homepage": "https://github.com/kyroskoh/domain-intelligence-analyzer#readme",
+  "bugs": {
+    "url": "https://github.com/kyroskoh/domain-intelligence-analyzer/issues"
+  },
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:frontend": "npm --workspace=apps/frontend run dev",
+    "dev:backend": "npm --workspace=apps/backend run dev",
+    "build": "npm-run-all build:*",
+    "build:frontend": "npm --workspace=apps/frontend run build",
+    "build:backend": "npm --workspace=apps/backend run build",
+    "test": "npm-run-all --continue-on-error test:*",
+    "test:frontend": "npm --workspace=apps/frontend run test",
+    "test:backend": "npm --workspace=apps/backend run test",
+    "lint": "npm-run-all --continue-on-error lint:*",
+    "lint:frontend": "npm --workspace=apps/frontend run lint",
+    "lint:backend": "npm --workspace=apps/backend run lint",
+    "format": "prettier --write \"**/*.{js,ts,tsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{js,ts,tsx,json,md}\"",
+    "clean": "rimraf apps/*/dist apps/*/.next apps/*/node_modules/.cache",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up --build",
+    "docker:down": "docker-compose down"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.1",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.1.0",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

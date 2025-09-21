@@ -1,0 +1,408 @@
+import { v4 as uuidv4 } from 'uuid';
+import { logger } from '@/utils/logger';
+import { WhoisService } from './whois/WhoisService';
+import { DnsService } from './dns/DnsService';
+import { RdapService } from './rdap/RdapService';
+import { CacheService } from './cache/CacheService';
+import { 
+  DomainAnalysisRequest, 
+  DomainAnalysisResponse, 
+  AnalysisMeta,
+  WhoisData,
+  DnsData,
+  RdapData,
+} from '@/types/domain';
+
+export class DomainAnalysisService {
+  private whoisService: WhoisService;
+  private dnsService: DnsService;
+  private rdapService: RdapService;
+  private cacheService: CacheService;
+
+  constructor() {
+    this.whoisService = new WhoisService();
+    this.dnsService = new DnsService();
+    this.rdapService = new RdapService();
+    this.cacheService = new CacheService();
+  }
+
+  /**
+   * Performs comprehensive domain analysis
+   */
+  async analyzeDomain(request: DomainAnalysisRequest): Promise<DomainAnalysisResponse> {
+    const requestId = uuidv4();
+    const startTime = Date.now();
+    const domain = request.domain.toLowerCase();
+    
+    logger.info(`Starting domain analysis for ${domain}`, {
+      requestId,
+      domain,
+      request,
+    });
+
+    const meta: AnalysisMeta = {
+      requestId,
+      duration: 0,
+      cached: false,
+      errors: [],
+      warnings: [],
+    };
+
+    const response: DomainAnalysisResponse = {
+      domain,
+      analyzedAt: new Date().toISOString(),
+      meta,
+    };
+
+    try {
+      // Check cache first
+      const cacheKey = CacheService.generateDomainKey(domain);
+      const cachedResult = await this.cacheService.get<DomainAnalysisResponse>(cacheKey);
+      
+      if (cachedResult) {
+        logger.info(`Returning cached analysis for ${domain}`, { requestId });
+        cachedResult.meta.cached = true;
+        cachedResult.meta.duration = Date.now() - startTime;
+        return cachedResult;
+      }
+
+      // Perform analysis with parallel execution where possible
+      const analysisPromises: Array<Promise<any>> = [];
+      
+      // WHOIS lookup
+      if (request.includeWhois !== false) {
+        analysisPromises.push(
+          this.performWhoisLookup(domain, meta).catch(error => {
+            meta.errors.push(`WHOIS lookup failed: ${error.message}`);
+            return null;
+          })
+        );
+      }
+
+      // RDAP lookup
+      if (request.includeRdap !== false) {
+        analysisPromises.push(
+          this.performRdapLookup(domain, meta).catch(error => {
+            meta.errors.push(`RDAP lookup failed: ${error.message}`);
+            return null;
+          })
+        );
+      }
+
+      // DNS lookup
+      if (request.includeDns !== false) {
+        analysisPromises.push(
+          this.performDnsLookup(domain, meta).catch(error => {
+            meta.errors.push(`DNS lookup failed: ${error.message}`);
+            return null;
+          })
+        );
+      }
+
+      // Execute all lookups in parallel
+      const results = await Promise.allSettled(analysisPromises);
+      
+      let resultIndex = 0;
+      
+      // Process WHOIS results
+      if (request.includeWhois !== false) {
+        const whoisResult = results[resultIndex++];
+        if (whoisResult.status === 'fulfilled' && whoisResult.value) {
+          response.whois = whoisResult.value;
+        }
+      }
+
+      // Process RDAP results
+      if (request.includeRdap !== false) {
+        const rdapResult = results[resultIndex++];
+        if (rdapResult.status === 'fulfilled' && rdapResult.value) {
+          response.rdap = rdapResult.value;
+        }
+      }
+
+      // Process DNS results
+      if (request.includeDns !== false) {
+        const dnsResult = results[resultIndex++];
+        if (dnsResult.status === 'fulfilled' && dnsResult.value) {
+          response.dns = dnsResult.value;
+        }
+      }
+
+      // Perform security analysis if requested
+      if (request.includeSecurityAnalysis !== false && (response.dns || response.whois || response.rdap)) {
+        try {
+          // TODO: Implement security analysis
+          meta.warnings.push('Security analysis not yet implemented');
+        } catch (error) {
+          meta.errors.push(`Security analysis failed: ${(error as Error).message}`);
+        }
+      }
+
+      // Update meta information
+      meta.duration = Date.now() - startTime;
+
+      // Cache the result if it contains useful data
+      if (response.whois || response.rdap || response.dns) {
+        await this.cacheService.set(cacheKey, response);
+      }
+
+      logger.info(`Completed domain analysis for ${domain}`, {
+        requestId,
+        duration: meta.duration,
+        errors: meta.errors.length,
+        warnings: meta.warnings.length,
+      });
+
+      return response;
+
+    } catch (error) {
+      meta.duration = Date.now() - startTime;
+      meta.errors.push(`Analysis failed: ${(error as Error).message}`);
+      
+      logger.error(`Domain analysis failed for ${domain}`, {
+        requestId,
+        duration: meta.duration,
+        error,
+      });
+
+      throw error;
+    }
+  }
+
+  /**
+   * Perform WHOIS lookup with caching
+   */
+  private async performWhoisLookup(domain: string, meta: AnalysisMeta): Promise<WhoisData | null> {
+    const cacheKey = CacheService.generateWhoisKey(domain);
+    
+    try {
+      // Check cache first
+      const cached = await this.cacheService.get<WhoisData>(cacheKey);
+      if (cached) {
+        logger.debug(`Using cached WHOIS data for ${domain}`);
+        return cached;
+      }
+
+      // Perform lookup
+      const whoisData = await this.whoisService.lookup(domain);
+      
+      // Cache the result
+      await this.cacheService.set(cacheKey, whoisData);
+      
+      return whoisData;
+    } catch (error) {
+      logger.warn(`WHOIS lookup failed for ${domain}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Perform RDAP lookup with caching
+   */
+  private async performRdapLookup(domain: string, meta: AnalysisMeta): Promise<RdapData | null> {
+    const cacheKey = CacheService.generateRdapKey(domain);
+    
+    try {
+      // Check if RDAP is available for this domain
+      if (!this.rdapService.isRdapAvailable(domain)) {
+        meta.warnings.push(`RDAP not available for domain TLD`);
+        return null;
+      }
+
+      // Check cache first
+      const cached = await this.cacheService.get<RdapData>(cacheKey);
+      if (cached) {
+        logger.debug(`Using cached RDAP data for ${domain}`);
+        return cached;
+      }
+
+      // Perform lookup
+      const rdapData = await this.rdapService.lookup(domain);
+      
+      // Cache the result
+      await this.cacheService.set(cacheKey, rdapData);
+      
+      return rdapData;
+    } catch (error) {
+      logger.warn(`RDAP lookup failed for ${domain}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Perform DNS lookup with caching
+   */
+  private async performDnsLookup(domain: string, meta: AnalysisMeta): Promise<DnsData | null> {
+    const cacheKey = CacheService.generateDnsKey(domain);
+    
+    try {
+      // Check cache first
+      const cached = await this.cacheService.get<DnsData>(cacheKey);
+      if (cached) {
+        logger.debug(`Using cached DNS data for ${domain}`);
+        return cached;
+      }
+
+      // Perform lookup
+      const dnsData = await this.dnsService.lookup(domain);
+      
+      // Cache the result
+      await this.cacheService.set(cacheKey, dnsData);
+      
+      return dnsData;
+    } catch (error) {
+      logger.warn(`DNS lookup failed for ${domain}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get individual WHOIS data
+   */
+  async getWhoisData(domain: string): Promise<WhoisData> {
+    const meta: AnalysisMeta = {
+      requestId: uuidv4(),
+      duration: 0,
+      cached: false,
+      errors: [],
+      warnings: [],
+    };
+
+    const result = await this.performWhoisLookup(domain, meta);
+    if (!result) {
+      throw new Error('WHOIS data not available');
+    }
+    return result;
+  }
+
+  /**
+   * Get individual RDAP data
+   */
+  async getRdapData(domain: string): Promise<RdapData> {
+    const meta: AnalysisMeta = {
+      requestId: uuidv4(),
+      duration: 0,
+      cached: false,
+      errors: [],
+      warnings: [],
+    };
+
+    const result = await this.performRdapLookup(domain, meta);
+    if (!result) {
+      throw new Error('RDAP data not available');
+    }
+    return result;
+  }
+
+  /**
+   * Get individual DNS data
+   */
+  async getDnsData(domain: string): Promise<DnsData> {
+    const meta: AnalysisMeta = {
+      requestId: uuidv4(),
+      duration: 0,
+      cached: false,
+      errors: [],
+      warnings: [],
+    };
+
+    const result = await this.performDnsLookup(domain, meta);
+    if (!result) {
+      throw new Error('DNS data not available');
+    }
+    return result;
+  }
+
+  /**
+   * Clear cached data for a domain
+   */
+  async clearDomainCache(domain: string): Promise<void> {
+    const keys = [
+      CacheService.generateDomainKey(domain),
+      CacheService.generateWhoisKey(domain),
+      CacheService.generateRdapKey(domain),
+      CacheService.generateDnsKey(domain),
+    ];
+
+    await Promise.allSettled(
+      keys.map(key => this.cacheService.delete(key))
+    );
+
+    logger.info(`Cleared cache for domain: ${domain}`);
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats() {
+    return this.cacheService.getStats();
+  }
+
+  /**
+   * Health check for the analysis service
+   */
+  async healthCheck(): Promise<{
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    services: {
+      whois: boolean;
+      dns: boolean;
+      rdap: boolean;
+      cache: {
+        memory: boolean;
+        redis: boolean;
+      };
+    };
+  }> {
+    try {
+      // Test basic DNS resolution (most reliable)
+      const testDomain = 'google.com';
+      
+      const [cacheHealth] = await Promise.allSettled([
+        this.cacheService.healthCheck(),
+      ]);
+
+      const services = {
+        whois: true, // WHOIS is generally available
+        dns: true, // DNS is generally available
+        rdap: this.rdapService.isRdapAvailable('google.com'), // Test RDAP availability
+        cache: cacheHealth.status === 'fulfilled' ? cacheHealth.value : { memory: false, redis: false },
+      };
+
+      // Determine overall health
+      let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+      
+      if (!services.dns || !services.cache.memory) {
+        status = 'unhealthy';
+      } else if (!services.whois || !services.rdap || !services.cache.redis) {
+        status = 'degraded';
+      }
+
+      return {
+        status,
+        services,
+      };
+    } catch (error) {
+      logger.error('Health check failed:', error);
+      return {
+        status: 'unhealthy',
+        services: {
+          whois: false,
+          dns: false,
+          rdap: false,
+          cache: {
+            memory: false,
+            redis: false,
+          },
+        },
+      };
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async close(): Promise<void> {
+    await this.cacheService.close();
+    logger.info('Domain analysis service closed');
+  }
+}
