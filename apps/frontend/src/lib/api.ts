@@ -1,4 +1,5 @@
 import axios, { AxiosResponse } from 'axios';
+import { transformDomainAnalysisResponse, transformWhoisData, transformDnsData, transformRdapData } from './data-transform';
 
 // Types (matching our backend types)
 export interface DomainAnalysisRequest {
@@ -29,6 +30,7 @@ export interface AnalysisMeta {
 
 export interface WhoisData {
   domain: string;
+  domainName?: string; // Alias for compatibility
   registrar?: {
     name: string;
     url?: string;
@@ -44,8 +46,11 @@ export interface WhoisData {
   createdDate?: string;
   updatedDate?: string;
   expirationDate?: string;
+  creationDate?: string; // Alias for compatibility
+  expiryDate?: string; // Alias for compatibility
   registrarLockStatus?: boolean;
   raw: string;
+  rawData?: string; // Alias for compatibility
 }
 
 export interface ContactInfo {
@@ -63,6 +68,8 @@ export interface ContactInfo {
 
 export interface RdapData {
   domain: string;
+  ldhName?: string; // Alias for compatibility
+  unicodeName?: string; // For internationalized domains
   handle?: string;
   registrar?: {
     name: string;
@@ -76,6 +83,9 @@ export interface RdapData {
     delegationSigned: boolean;
     dsRecords?: DsRecord[];
   };
+  rdapConformance?: string[]; // RDAP conformance levels
+  port43?: string; // WHOIS server
+  links?: { href: string; rel?: string }[]; // Related links
   raw: any;
 }
 
@@ -120,8 +130,20 @@ export interface DnsData {
     CAA: CAARecord[];
     SRV: SRVRecord[];
   };
+  // Aliases for component compatibility
+  a?: string[];
+  aaaa?: string[];
+  cname?: string[];
+  mx?: string[];
+  ns?: string[];
+  txt?: string[];
+  soa?: string[];
+  srv?: string[];
+  ptr?: string[];
   nameservers: NameserverInfo[];
+  nameserverHealth?: NameserverInfo[]; // Alias
   dnssec: DnssecInfo;
+  propagationStatus?: any; // For future use
 }
 
 export interface BaseRecord {
@@ -305,9 +327,55 @@ class ApiClient {
       },
       (error) => {
         console.error('API Error:', error.response?.data || error.message);
-        return Promise.reject(error);
+        
+        // Transform error to user-friendly format
+        const errorMessage = error.response?.data?.message || error.message || 'An unexpected error occurred';
+        const statusCode = error.response?.status;
+        
+        const transformedError = {
+          ...error,
+          userMessage: this.getUserFriendlyErrorMessage(errorMessage, statusCode),
+          originalError: error
+        };
+        
+        return Promise.reject(transformedError);
       }
     );
+  }
+
+  private getUserFriendlyErrorMessage(message: string, statusCode?: number): string {
+    if (statusCode === 400) {
+      if (message.includes('domain')) {
+        return 'Please enter a valid domain name.';
+      }
+      return 'Invalid request. Please check your input.';
+    }
+    
+    if (statusCode === 404) {
+      return 'The requested resource was not found.';
+    }
+    
+    if (statusCode === 429) {
+      return 'Too many requests. Please wait a moment and try again.';
+    }
+    
+    if (statusCode === 500) {
+      return 'Server error occurred. Please try again later.';
+    }
+    
+    if (statusCode === 503) {
+      return 'Service temporarily unavailable. Please try again later.';
+    }
+    
+    if (message.includes('timeout')) {
+      return 'The request timed out. Please try again.';
+    }
+    
+    if (message.includes('network') || message.includes('ENOTFOUND')) {
+      return 'Network error. Please check your connection and try again.';
+    }
+    
+    return message || 'An unexpected error occurred. Please try again.';
   }
 
   // Health check
@@ -341,23 +409,23 @@ class ApiClient {
     const url = `/api/analyze/${encodeURIComponent(domain)}${queryString ? `?${queryString}` : ''}`;
     
     const response = await this.client.get<DomainAnalysisResponse>(url);
-    return response.data;
+    return transformDomainAnalysisResponse(response.data);
   }
 
   // Individual service methods
   async getWhoisData(domain: string): Promise<WhoisData> {
     const response = await this.client.get<WhoisData>(`/api/whois/${encodeURIComponent(domain)}`);
-    return response.data;
+    return transformWhoisData(response.data);
   }
 
   async getRdapData(domain: string): Promise<RdapData> {
     const response = await this.client.get<RdapData>(`/api/rdap/${encodeURIComponent(domain)}`);
-    return response.data;
+    return transformRdapData(response.data);
   }
 
   async getDnsData(domain: string): Promise<DnsData> {
     const response = await this.client.get<DnsData>(`/api/dns/${encodeURIComponent(domain)}`);
-    return response.data;
+    return transformDnsData(response.data);
   }
 }
 
