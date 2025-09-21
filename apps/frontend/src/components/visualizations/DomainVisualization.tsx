@@ -9,6 +9,7 @@ import RiskLevelPieChart from './RiskLevelPieChart';
 import { DomainTimelineChart } from './DomainTimelineChart';
 import { NetworkTopologyDiagram } from './NetworkTopologyDiagram';
 import { SecurityTrendChart } from './SecurityTrendChart';
+import { PerformanceAnalytics } from './PerformanceAnalytics';
 import { BarChart3, TrendingUp, Network, Calendar, Shield } from 'lucide-react';
 
 interface SecurityAnalysis {
@@ -269,44 +270,11 @@ export default function DomainVisualization({
               />
             </TabsContent>
 
-            {/* Performance Tab (Coming Soon) */}
+            {/* Performance Analytics Tab */}
             <TabsContent value="performance" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    Performance Analytics
-                  </CardTitle>
-                  <CardDescription>
-                    Real-time performance monitoring and historical analysis
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="text-center text-gray-500">
-                    <BarChart3 className="h-16 w-16 mx-auto mb-4 opacity-50" />
-                    <h3 className="text-lg font-semibold mb-2">Performance Metrics</h3>
-                    <p>Real-time monitoring dashboards coming soon</p>
-                    <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="p-4 border rounded-lg">
-                        <div className="text-xs text-gray-500">Response Time</div>
-                        <div className="text-lg font-bold">Coming Soon</div>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <div className="text-xs text-gray-500">Uptime</div>
-                        <div className="text-lg font-bold">Coming Soon</div>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <div className="text-xs text-gray-500">DNS Speed</div>
-                        <div className="text-lg font-bold">Coming Soon</div>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <div className="text-xs text-gray-500">SSL Score</div>
-                        <div className="text-lg font-bold">Coming Soon</div>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <PerformanceAnalytics 
+                domain={domain}
+              />
             </TabsContent>
           </Tabs>
         </CardContent>
