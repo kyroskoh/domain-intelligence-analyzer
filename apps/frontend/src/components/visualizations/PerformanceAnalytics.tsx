@@ -59,50 +59,101 @@ interface PerformanceAnalyticsProps {
 
 // Mock data generator for demonstration
 const generateMockPerformanceData = (domain: string): PerformanceMetrics => {
-  const baseResponseTime = Math.random() * 200 + 100; // 100-300ms
-  const history = Array.from({ length: 24 }, (_, i) => ({
-    timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000),
-    value: baseResponseTime + Math.random() * 100 - 50
-  }));
+  try {
+    const baseResponseTime = Math.random() * 200 + 100; // 100-300ms
+    const history = Array.from({ length: 24 }, (_, i) => {
+      const timestamp = new Date(Date.now() - (23 - i) * 60 * 60 * 1000);
+      const value = Math.max(50, baseResponseTime + Math.random() * 100 - 50);
+      return { timestamp, value };
+    });
 
-  return {
-    responseTime: {
-      current: Math.round(baseResponseTime),
-      average: Math.round(history.reduce((acc, h) => acc + h.value, 0) / history.length),
-      history
-    },
-    uptime: {
-      percentage: 99.9 - Math.random() * 0.5,
-      lastDowntime: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-      totalDowntime: Math.round(Math.random() * 120) // minutes in last 30 days
-    },
-    dnsSpeed: {
-      resolutionTime: Math.round(Math.random() * 50 + 10),
-      propagationDelay: Math.round(Math.random() * 100 + 50),
-      ttlOptimization: Math.round(Math.random() * 40 + 60)
-    },
-    sslScore: {
-      handshakeTime: Math.round(Math.random() * 200 + 100),
-      certificateValidation: Math.round(Math.random() * 100 + 150),
-      protocolSupport: Math.round(Math.random() * 20 + 80),
-      overallScore: Math.round(Math.random() * 20 + 80)
-    },
-    loadTime: {
-      firstByte: Math.round(baseResponseTime * 0.6),
-      domReady: Math.round(baseResponseTime * 1.2),
-      fullyLoaded: Math.round(baseResponseTime * 1.8)
-    },
-    availability: {
-      global: 99.5 + Math.random() * 0.5,
-      regions: [
-        { region: 'North America', availability: 99.8 + Math.random() * 0.2, latency: Math.round(Math.random() * 50 + 20) },
-        { region: 'Europe', availability: 99.7 + Math.random() * 0.3, latency: Math.round(Math.random() * 80 + 30) },
-        { region: 'Asia Pacific', availability: 99.6 + Math.random() * 0.4, latency: Math.round(Math.random() * 120 + 50) },
-        { region: 'South America', availability: 99.4 + Math.random() * 0.6, latency: Math.round(Math.random() * 150 + 80) },
-        { region: 'Africa', availability: 99.2 + Math.random() * 0.8, latency: Math.round(Math.random() * 200 + 100) }
-      ]
-    }
-  };
+    const averageResponseTime = history.reduce((acc, h) => acc + h.value, 0) / history.length;
+
+    return {
+      responseTime: {
+        current: Math.round(baseResponseTime),
+        average: Math.round(averageResponseTime),
+        history
+      },
+      uptime: {
+        percentage: Math.max(99, 99.9 - Math.random() * 0.5),
+        lastDowntime: new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
+        totalDowntime: Math.round(Math.random() * 120) // minutes in last 30 days
+      },
+      dnsSpeed: {
+        resolutionTime: Math.round(Math.random() * 50 + 10),
+        propagationDelay: Math.round(Math.random() * 100 + 50),
+        ttlOptimization: Math.round(Math.random() * 40 + 60)
+      },
+      sslScore: {
+        handshakeTime: Math.round(Math.random() * 200 + 100),
+        certificateValidation: Math.round(Math.random() * 100 + 150),
+        protocolSupport: Math.round(Math.random() * 20 + 80),
+        overallScore: Math.round(Math.random() * 20 + 80)
+      },
+      loadTime: {
+        firstByte: Math.round(baseResponseTime * 0.6),
+        domReady: Math.round(baseResponseTime * 1.2),
+        fullyLoaded: Math.round(baseResponseTime * 1.8)
+      },
+      availability: {
+        global: Math.max(99, 99.5 + Math.random() * 0.5),
+        regions: [
+          { region: 'North America', availability: Math.max(99, 99.8 + Math.random() * 0.2), latency: Math.round(Math.random() * 50 + 20) },
+          { region: 'Europe', availability: Math.max(99, 99.7 + Math.random() * 0.3), latency: Math.round(Math.random() * 80 + 30) },
+          { region: 'Asia Pacific', availability: Math.max(99, 99.6 + Math.random() * 0.4), latency: Math.round(Math.random() * 120 + 50) },
+          { region: 'South America', availability: Math.max(99, 99.4 + Math.random() * 0.6), latency: Math.round(Math.random() * 150 + 80) },
+          { region: 'Africa', availability: Math.max(99, 99.2 + Math.random() * 0.8), latency: Math.round(Math.random() * 200 + 100) }
+        ]
+      }
+    };
+  } catch (error) {
+    console.error('Error generating mock performance data:', error);
+    // Return fallback data
+    const fallbackHistory = Array.from({ length: 24 }, (_, i) => ({
+      timestamp: new Date(Date.now() - (23 - i) * 60 * 60 * 1000),
+      value: 150
+    }));
+
+    return {
+      responseTime: {
+        current: 150,
+        average: 150,
+        history: fallbackHistory
+      },
+      uptime: {
+        percentage: 99.5,
+        lastDowntime: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        totalDowntime: 30
+      },
+      dnsSpeed: {
+        resolutionTime: 25,
+        propagationDelay: 100,
+        ttlOptimization: 80
+      },
+      sslScore: {
+        handshakeTime: 150,
+        certificateValidation: 200,
+        protocolSupport: 90,
+        overallScore: 85
+      },
+      loadTime: {
+        firstByte: 90,
+        domReady: 180,
+        fullyLoaded: 270
+      },
+      availability: {
+        global: 99.5,
+        regions: [
+          { region: 'North America', availability: 99.8, latency: 45 },
+          { region: 'Europe', availability: 99.7, latency: 65 },
+          { region: 'Asia Pacific', availability: 99.6, latency: 120 },
+          { region: 'South America', availability: 99.4, latency: 180 },
+          { region: 'Africa', availability: 99.2, latency: 220 }
+        ]
+      }
+    };
+  }
 };
 
 const ResponseTimeChart: React.FC<{ data: PerformanceMetrics['responseTime']; className?: string }> = ({ 
@@ -282,47 +333,107 @@ export function PerformanceAnalytics({ domain, className }: PerformanceAnalytics
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    let interval: NodeJS.Timeout | null = null;
+
     // Simulate API call
     const loadMetrics = async () => {
-      setIsLoading(true);
-      // Simulate network delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setMetrics(generateMockPerformanceData(domain));
-      setIsLoading(false);
+      try {
+        console.log('PerformanceAnalytics: Starting to load metrics for domain:', domain);
+        setIsLoading(true);
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        if (isMounted) {
+          console.log('PerformanceAnalytics: Generating mock data...');
+          const mockData = generateMockPerformanceData(domain);
+          console.log('PerformanceAnalytics: Mock data generated successfully:', mockData);
+          setMetrics(mockData);
+          setIsLoading(false);
+          console.log('PerformanceAnalytics: Loading completed');
+          
+          // Set up real-time updates only after initial load
+          interval = setInterval(() => {
+            if (isMounted) {
+              setMetrics(prev => {
+                if (!prev) return null;
+                
+                try {
+                  return {
+                    ...prev,
+                    responseTime: {
+                      ...prev.responseTime,
+                      current: Math.max(50, Math.round(prev.responseTime.current + Math.random() * 20 - 10)),
+                      history: [
+                        ...prev.responseTime.history.slice(1),
+                        {
+                          timestamp: new Date(),
+                          value: Math.max(50, prev.responseTime.current + Math.random() * 20 - 10)
+                        }
+                      ]
+                    }
+                  };
+                } catch (error) {
+                  console.warn('Error updating metrics:', error);
+                  return prev;
+                }
+              });
+            }
+          }, 30000); // Update every 30 seconds
+        }
+      } catch (error) {
+        console.error('PerformanceAnalytics: Error loading performance metrics:', error);
+        if (isMounted) {
+          setIsLoading(false);
+          // Set fallback data on error
+          try {
+            setMetrics(generateMockPerformanceData(domain));
+          } catch (fallbackError) {
+            console.error('PerformanceAnalytics: Fallback data generation also failed:', fallbackError);
+          }
+        }
+      }
     };
 
     loadMetrics();
 
-    // Set up real-time updates
-    const interval = setInterval(() => {
-      if (!isLoading) {
-        setMetrics(prev => prev ? {
-          ...prev,
-          responseTime: {
-            ...prev.responseTime,
-            current: Math.round(prev.responseTime.current + Math.random() * 20 - 10),
-            history: [
-              ...prev.responseTime.history.slice(1),
-              {
-                timestamp: new Date(),
-                value: prev.responseTime.current + Math.random() * 20 - 10
-              }
-            ]
-          }
-        } : null);
+    return () => {
+      isMounted = false;
+      if (interval) {
+        clearInterval(interval);
       }
-    }, 30000); // Update every 30 seconds
-
-    return () => clearInterval(interval);
-  }, [domain, isLoading]);
+    };
+  }, [domain]);
 
   if (isLoading) {
     return (
       <div className={`space-y-6 ${className}`}>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2">Loading performance metrics...</span>
-        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <span className="text-sm text-muted-foreground">Loading performance metrics...</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!metrics && !isLoading) {
+    return (
+      <div className={`space-y-6 ${className}`}>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8 text-muted-foreground">
+              <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">Performance Data Unavailable</h3>
+              <p className="text-sm">Unable to load performance metrics for this domain.</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
