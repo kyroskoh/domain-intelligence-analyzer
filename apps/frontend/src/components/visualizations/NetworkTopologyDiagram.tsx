@@ -151,8 +151,12 @@ export function NetworkTopologyDiagram({
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const width = 800;
+    const containerWidth = svgRef.current.clientWidth || 1000;
+    const width = containerWidth;
     const height = 600;
+    
+    // Update SVG viewBox for responsiveness
+    svg.attr('viewBox', `0 0 ${containerWidth} ${height}`);
 
     // Create simulation
     const simulation = d3.forceSimulation<NetworkNode>(nodes)
@@ -336,10 +340,10 @@ export function NetworkTopologyDiagram({
           <div className="w-full overflow-auto">
             <svg
               ref={svgRef}
-              width={800}
+              width="100%"
               height={600}
-              className="border rounded bg-gray-50"
-              viewBox="0 0 800 600"
+              className="border rounded bg-gray-50 min-w-full"
+              viewBox="0 0 1000 600"
             />
           </div>
 

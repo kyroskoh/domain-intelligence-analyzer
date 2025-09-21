@@ -107,8 +107,12 @@ export function SecurityTrendChart({
     svg.selectAll('*').remove();
 
     const margin = { top: 20, right: 80, bottom: 50, left: 50 };
-    const width = 800 - margin.left - margin.right;
+    const containerWidth = svgRef.current.clientWidth || 800;
+    const width = containerWidth - margin.left - margin.right;
     const height = 400 - margin.top - margin.bottom;
+    
+    // Update SVG viewBox for responsiveness
+    svg.attr('viewBox', `0 0 ${containerWidth} 400`);
 
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -374,9 +378,10 @@ export function SecurityTrendChart({
           <div className="w-full overflow-x-auto">
             <svg
               ref={svgRef}
-              width={800}
+              width="100%"
               height={400}
-              className="border rounded bg-white"
+              className="border rounded bg-white min-w-full"
+              viewBox="0 0 800 400"
             />
           </div>
 

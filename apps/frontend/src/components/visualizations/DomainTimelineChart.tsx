@@ -108,8 +108,12 @@ export function DomainTimelineChart({
     svg.selectAll('*').remove();
 
     const margin = { top: 20, right: 20, bottom: 40, left: 60 };
-    const width = 800 - margin.left - margin.right;
+    const containerWidth = svgRef.current.clientWidth || 800;
+    const width = containerWidth - margin.left - margin.right;
     const height = 400 - margin.bottom - margin.top;
+    
+    // Update SVG viewBox for responsiveness
+    svg.attr('viewBox', `0 0 ${containerWidth} 400`);
 
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -251,9 +255,10 @@ export function DomainTimelineChart({
           <div className="w-full overflow-x-auto">
             <svg
               ref={svgRef}
-              width={800}
+              width="100%"
               height={400}
-              className="border rounded bg-gray-50"
+              viewBox="0 0 800 400"
+              className="border rounded bg-gray-50 min-w-full"
             />
           </div>
 

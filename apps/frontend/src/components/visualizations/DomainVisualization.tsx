@@ -152,10 +152,9 @@ export default function DomainVisualization({
                   </TabsList>
 
               <TabsContent value="breakdown" className="mt-6">
-                <div className="flex justify-center">
+                <div className="w-full">
                   <SecurityScoreChart 
                     data={securityData.breakdown}
-                    width={800}
                     height={400}
                     className="w-full"
                   />

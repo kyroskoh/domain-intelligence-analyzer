@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as d3 from 'd3';
 
 interface SecurityCategory {
@@ -13,18 +13,32 @@ interface SecurityCategory {
 
 interface SecurityScoreChartProps {
   data: SecurityCategory[];
-  width?: number;
   height?: number;
   className?: string;
 }
 
 export default function SecurityScoreChart({ 
   data, 
-  width = 600, 
   height = 400, 
   className = '' 
 }: SecurityScoreChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height });
+
+  // Handle container resize
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const { width: containerWidth } = containerRef.current.getBoundingClientRect();
+        setDimensions({ width: Math.max(containerWidth, 300), height });
+      }
+    };
+
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [height]);
 
   useEffect(() => {
     if (!data || data.length === 0) return;
@@ -33,8 +47,8 @@ export default function SecurityScoreChart({
     svg.selectAll('*').remove(); // Clear previous content
 
     const margin = { top: 20, right: 30, bottom: 80, left: 60 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
+    const chartWidth = dimensions.width - margin.left - margin.right;
+    const chartHeight = dimensions.height - margin.top - margin.bottom;
 
     // Create scales
     const xScale = d3.scaleBand()
@@ -129,7 +143,7 @@ export default function SecurityScoreChart({
 
     // Add title
     svg.append('text')
-      .attr('x', width / 2)
+      .attr('x', dimensions.width / 2)
       .attr('y', margin.top / 2)
       .attr('text-anchor', 'middle')
       .style('font-size', '16px')
@@ -176,11 +190,11 @@ export default function SecurityScoreChart({
     return () => {
       d3.selectAll('.tooltip').remove();
     };
-  }, [data, width, height]);
+  }, [data, dimensions.width, dimensions.height]);
 
   if (!data || data.length === 0) {
     return (
-      <div className={`flex items-center justify-center ${className}`} style={{ width, height }}>
+      <div ref={containerRef} className={`flex items-center justify-center ${className}`} style={{ height }}>
         <div className="text-center text-muted-foreground">
           <div className="text-lg mb-2">📊</div>
           <p>No security data available</p>
@@ -190,13 +204,14 @@ export default function SecurityScoreChart({
   }
 
   return (
-    <div className={`${className}`}>
+    <div ref={containerRef} className={`w-full ${className}`}>
       <svg
         ref={svgRef}
-        width={width}
-        height={height}
+        width={dimensions.width}
+        height={dimensions.height}
+        viewBox={`0 0 ${dimensions.width} ${dimensions.height}`}
         style={{ 
-          maxWidth: '100%', 
+          width: '100%',
           height: 'auto',
           fontFamily: 'system-ui, -apple-system, sans-serif'
         }}
