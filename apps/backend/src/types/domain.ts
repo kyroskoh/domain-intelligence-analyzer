@@ -77,6 +77,7 @@ export interface RdapData {
     delegationSigned: boolean;
     dsRecords?: DsRecord[];
   };
+  rdapConformance?: string[]; // RDAP conformance levels
   raw: any;
 }
 

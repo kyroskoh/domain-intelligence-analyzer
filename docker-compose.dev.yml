@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # Backend development overrides
+  backend:
+    build:
+      target: dev
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+    volumes:
+      - ./apps/backend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev"]
+    # Enable hot reloading
+    stdin_open: true
+    tty: true
+
+  # Frontend development overrides  
+  frontend:
+    build:
+      target: dev
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://backend:3001
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: ["npm", "run", "dev"]
+    # Enable hot reloading
+    stdin_open: true
+    tty: true
+
+  # Development tools container (optional)
+  dev-tools:
+    image: node:18-alpine
+    container_name: domain-analyzer-dev-tools
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - /workspace/node_modules
+    networks:
+      - domain-analyzer-network
+    profiles:
+      - tools
+    command: ["tail", "-f", "/dev/null"]
