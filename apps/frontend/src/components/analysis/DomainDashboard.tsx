@@ -106,6 +106,38 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
     }
   };
 
+  const scrollToSection = (sectionId: string) => {
+    // First, switch to details tab
+    setActiveView('details');
+    
+    // Use setTimeout to ensure the tab content is rendered before scrolling
+    setTimeout(() => {
+      const element = document.getElementById(sectionId);
+      if (element) {
+        // Calculate offset to account for fixed headers
+        const yOffset = -80; // Adjust this value based on your header height
+        const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        
+        window.scrollTo({ top: y, behavior: 'smooth' });
+        
+        // Add a temporary highlight effect with better styling
+        element.style.transition = 'all 0.3s ease';
+        element.style.transform = 'scale(1.02)';
+        element.style.boxShadow = '0 4px 20px rgba(59, 130, 246, 0.3)';
+        element.style.borderRadius = '8px';
+        
+        // Remove the effect after animation
+        setTimeout(() => {
+          element.style.transform = 'scale(1)';
+          element.style.boxShadow = 'none';
+          setTimeout(() => {
+            element.style.transition = '';
+          }, 300);
+        }, 1000);
+      }
+    }, 150); // Increased timeout to ensure tab switching is complete
+  };
+
   return (
     <div className={cn("space-y-6", className)}>
       {/* Header */}
@@ -168,7 +200,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           isLoading={whoisData.isLoading}
           hasError={!!whoisData.error}
           data={whoisData.data}
-          onClick={() => setActiveView('details')}
+          onClick={() => scrollToSection('whois-section')}
         />
         <OverviewCard
           title="RDAP Info"
@@ -176,7 +208,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           isLoading={rdapData.isLoading}
           hasError={!!rdapData.error}
           data={rdapData.data}
-          onClick={() => setActiveView('details')}
+          onClick={() => scrollToSection('rdap-section')}
         />
         <OverviewCard
           title="DNS Records"
@@ -184,7 +216,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           isLoading={dnsData.isLoading}
           hasError={!!dnsData.error}
           data={dnsData.data}
-          onClick={() => setActiveView('details')}
+          onClick={() => scrollToSection('dns-section')}
         />
         <OverviewCard
           title="Security Score"
@@ -192,7 +224,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           isLoading={domainAnalysis.isLoading}
           hasError={!!domainAnalysis.error}
           data={domainAnalysis.data?.security}
-          onClick={() => setActiveView('details')}
+          onClick={() => scrollToSection('security-section')}
         />
       </div>
 
@@ -221,13 +253,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
 
         <TabsContent value="details" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
-            <WhoisPanel data={whoisData.data} isLoading={whoisData.isLoading} />
-            <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} />
-            <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} />
-            <SecurityPanel 
-              data={domainAnalysis.data?.security} 
-              isLoading={domainAnalysis.isLoading} 
-            />
+            <div id="whois-section">
+              <WhoisPanel data={whoisData.data} isLoading={whoisData.isLoading} />
+            </div>
+            <div id="rdap-section">
+              <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} />
+            </div>
+            <div id="dns-section">
+              <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} />
+            </div>
+            <div id="security-section">
+              <SecurityPanel 
+                data={domainAnalysis.data?.security} 
+                isLoading={domainAnalysis.isLoading} 
+              />
+            </div>
           </div>
         </TabsContent>
 
@@ -328,10 +368,15 @@ interface OverviewCardProps {
 
 function OverviewCard({ title, icon, isLoading, hasError, data, onClick }: OverviewCardProps) {
   return (
-    <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={onClick}>
+    <Card 
+      className="cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 border-2 hover:border-primary/50" 
+      onClick={onClick}
+    >
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
-        {icon}
+        <div className="p-2 rounded-full bg-muted">
+          {icon}
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -346,8 +391,11 @@ function OverviewCard({ title, icon, isLoading, hasError, data, onClick }: Overv
           </div>
         ) : data ? (
           <div className="space-y-1">
-            <div className="text-lg font-bold">Available</div>
-            <p className="text-xs text-muted-foreground">Click to view details</p>
+            <div className="text-lg font-bold text-green-600">Available</div>
+            <p className="text-xs text-muted-foreground flex items-center">
+              <Eye className="h-3 w-3 mr-1" />
+              Click to view details
+            </p>
           </div>
         ) : (
           <div className="text-sm text-muted-foreground">No data available</div>
