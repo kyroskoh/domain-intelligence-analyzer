@@ -30,8 +30,10 @@ export function DomainTimelineChart({
   className 
 }: DomainTimelineChartProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [selectedEvent, setSelectedEvent] = useState<TimelineEvent | null>(null);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [zoomTransform, setZoomTransform] = useState<any>(null);
 
   // Process data to create timeline events
   useEffect(() => {
@@ -100,115 +102,256 @@ export function DomainTimelineChart({
     setEvents(timelineEvents);
   }, [domain, whoisData, dnsData, securityData]);
 
-  // D3 Timeline Visualization
+  // D3 Timeline Visualization with Zoom and Pan
   useEffect(() => {
     if (!svgRef.current || events.length === 0) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
-    const margin = { top: 20, right: 20, bottom: 40, left: 60 };
+    const margin = { top: 20, right: 20, bottom: 60, left: 60 };
     const containerWidth = svgRef.current.clientWidth || 800;
     const width = containerWidth - margin.left - margin.right;
     const height = 400 - margin.bottom - margin.top;
     
-    // Update SVG viewBox for responsiveness
-    svg.attr('viewBox', `0 0 ${containerWidth} 400`);
+    // Update SVG dimensions for responsiveness
+    svg
+      .attr('width', containerWidth)
+      .attr('height', 400)
+      .attr('viewBox', `0 0 ${containerWidth} 400`);
 
+    // Create main group
     const g = svg.append('g')
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
+    // Create clip path to prevent overflow during zoom
+    svg.append('defs')
+      .append('clipPath')
+      .attr('id', `timeline-clip-${domain}`)
+      .append('rect')
+      .attr('width', width)
+      .attr('height', height);
+
     // Create scales
-    const xScale = d3.scaleTime()
+    const originalXScale = d3.scaleTime()
       .domain(d3.extent(events, d => d.date) as [Date, Date])
       .range([0, width]);
+
+    let xScale = originalXScale;
 
     const yScale = d3.scaleBand()
       .domain(events.map((_, i) => i.toString()))
       .range([0, height])
-      .paddingInner(0.1);
+      .paddingInner(0.2);
 
     // Color scale for event types
     const colorScale = d3.scaleOrdinal()
       .domain(['creation', 'update', 'expiry', 'security', 'dns'])
       .range(['#22c55e', '#3b82f6', '#ef4444', '#f59e0b', '#8b5cf6']);
 
+    // Create content group with clipping
+    const contentG = g.append('g')
+      .attr('clip-path', `url(#timeline-clip-${domain})`);
+
     // Create timeline line
-    const line = d3.line<TimelineEvent>()
-      .x(d => xScale(d.date))
-      .y((_, i) => yScale(i.toString())! + yScale.bandwidth() / 2)
-      .curve(d3.curveMonotoneX);
+    const updateTimeline = () => {
+      const line = d3.line<TimelineEvent>()
+        .x(d => xScale(d.date))
+        .y((_, i) => yScale(i.toString())! + yScale.bandwidth() / 2)
+        .curve(d3.curveMonotoneX);
 
-    g.append('path')
-      .datum(events)
-      .attr('fill', 'none')
-      .attr('stroke', '#e5e7eb')
-      .attr('stroke-width', 2)
-      .attr('d', line);
+      // Update or create timeline path
+      const timelinePath = contentG.selectAll('.timeline-path')
+        .data([events]);
+      
+      timelinePath.enter()
+        .append('path')
+        .attr('class', 'timeline-path')
+        .merge(timelinePath)
+        .attr('fill', 'none')
+        .attr('stroke', '#e5e7eb')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+    };
 
-    // Add x-axis
-    const xAxis = d3.axisBottom(xScale)
-      .tickFormat(d3.timeFormat('%Y-%m-%d'));
+    // Create x-axis
+    const xAxisG = g.append('g')
+      .attr('class', 'x-axis')
+      .attr('transform', `translate(0,${height})`);
 
-    g.append('g')
-      .attr('transform', `translate(0,${height})`)
-      .call(xAxis)
-      .selectAll('text')
-      .style('text-anchor', 'end')
-      .attr('dx', '-.8em')
-      .attr('dy', '.15em')
-      .attr('transform', 'rotate(-45)');
+    const updateXAxis = () => {
+      const xAxis = d3.axisBottom(xScale)
+        .tickFormat(d3.timeFormat('%Y-%m-%d'))
+        .ticks(d3.timeMonth.every(1));
 
-    // Add events as circles
-    const eventGroups = g.selectAll('.event')
-      .data(events)
-      .enter()
-      .append('g')
-      .attr('class', 'event')
-      .attr('transform', (d, i) => 
-        `translate(${xScale(d.date)}, ${yScale(i.toString())! + yScale.bandwidth() / 2})`
-      )
-      .style('cursor', 'pointer')
-      .on('click', (event, d) => {
-        setSelectedEvent(d);
-      })
-      .on('mouseenter', function() {
-        d3.select(this).select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', 8);
-      })
-      .on('mouseleave', function() {
-        d3.select(this).select('circle')
-          .transition()
-          .duration(200)
-          .attr('r', 6);
+      xAxisG.call(xAxis)
+        .selectAll('text')
+        .style('text-anchor', 'end')
+        .attr('dx', '-.8em')
+        .attr('dy', '.15em')
+        .attr('transform', 'rotate(-45)');
+    };
+
+    // Update events function
+    const updateEvents = () => {
+      const eventGroups = contentG.selectAll('.event')
+        .data(events, (d: any) => d.title + d.date.getTime());
+      
+      // Remove old events
+      eventGroups.exit().remove();
+      
+      // Add new events
+      const eventEnter = eventGroups.enter()
+        .append('g')
+        .attr('class', 'event')
+        .style('cursor', 'pointer')
+        .on('click', (event, d) => {
+          setSelectedEvent(d);
+        })
+        .on('mouseenter', function() {
+          d3.select(this).select('circle')
+            .transition()
+            .duration(200)
+            .attr('r', 8);
+          
+          // Show tooltip with event details
+          const tooltip = d3.select('body')
+            .selectAll('.timeline-tooltip')
+            .data([d])
+            .join('div')
+            .attr('class', 'timeline-tooltip')
+            .style('position', 'absolute')
+            .style('background', 'rgba(0, 0, 0, 0.8)')
+            .style('color', 'white')
+            .style('padding', '8px')
+            .style('border-radius', '4px')
+            .style('font-size', '12px')
+            .style('pointer-events', 'none')
+            .style('z-index', '1000')
+            .style('opacity', 0);
+
+          tooltip.html(`
+            <div><strong>${d.title}</strong></div>
+            <div>${d.description}</div>
+            <div><small>${d.date.toLocaleDateString()}</small></div>
+          `)
+            .style('left', (event.pageX + 10) + 'px')
+            .style('top', (event.pageY - 10) + 'px')
+            .transition()
+            .duration(200)
+            .style('opacity', 1);
+        })
+        .on('mouseleave', function() {
+          d3.select(this).select('circle')
+            .transition()
+            .duration(200)
+            .attr('r', 6);
+          
+          // Hide tooltip
+          d3.select('body').selectAll('.timeline-tooltip')
+            .transition()
+            .duration(200)
+            .style('opacity', 0)
+            .remove();
+        });
+      
+      // Add circles for events
+      eventEnter.append('circle')
+        .attr('r', 6)
+        .attr('fill', d => colorScale(d.type) as string)
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 2);
+      
+      // Add event labels
+      eventEnter.append('text')
+        .attr('dx', 12)
+        .attr('dy', '0.35em')
+        .style('font-size', '12px')
+        .style('font-weight', '500')
+        .style('fill', '#374151')
+        .text(d => d.title);
+      
+      // Add severity indicators
+      eventEnter.filter(d => d.severity && d.severity !== 'low')
+        .append('circle')
+        .attr('r', 3)
+        .attr('cx', 8)
+        .attr('cy', -8)
+        .attr('fill', d => d.severity === 'high' ? '#ef4444' : '#f59e0b')
+        .attr('stroke', '#fff')
+        .attr('stroke-width', 1);
+      
+      // Update positions for all events (new and existing)
+      const eventUpdate = eventEnter.merge(eventGroups);
+      eventUpdate
+        .attr('transform', (d, i) => 
+          `translate(${xScale(d.date)}, ${yScale(i.toString())! + yScale.bandwidth() / 2})`
+        );
+    };
+
+    // Zoom behavior
+    const zoom = d3.zoom()
+      .scaleExtent([0.5, 10])
+      .translateExtent([[-100, -100], [width + 100, height + 100]])
+      .on('zoom', (event) => {
+        const { transform } = event;
+        setZoomTransform(transform);
+        
+        // Update x scale with zoom transform
+        xScale = transform.rescaleX(originalXScale);
+        
+        // Update timeline and events
+        updateTimeline();
+        updateXAxis();
+        updateEvents();
       });
 
-    // Add circles for events
-    eventGroups.append('circle')
-      .attr('r', 6)
-      .attr('fill', d => colorScale(d.type) as string)
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 2);
-
-    // Add event labels
-    eventGroups.append('text')
-      .attr('dx', 12)
-      .attr('dy', '0.35em')
+    // Apply zoom to svg
+    svg.call(zoom as any);
+    
+    // Add zoom controls
+    const controls = svg.append('g')
+      .attr('class', 'zoom-controls')
+      .attr('transform', `translate(${containerWidth - 100}, 10)`);
+    
+    // Reset zoom button
+    const resetButton = controls.append('g')
+      .attr('class', 'reset-button')
+      .style('cursor', 'pointer')
+      .on('click', () => {
+        svg.transition()
+          .duration(750)
+          .call(zoom.transform as any, d3.zoomIdentity);
+      });
+    
+    resetButton.append('rect')
+      .attr('width', 80)
+      .attr('height', 24)
+      .attr('fill', '#f3f4f6')
+      .attr('stroke', '#d1d5db')
+      .attr('rx', 4);
+    
+    resetButton.append('text')
+      .attr('x', 40)
+      .attr('y', 16)
+      .attr('text-anchor', 'middle')
       .style('font-size', '12px')
-      .style('font-weight', '500')
-      .text(d => d.title);
+      .style('fill', '#374151')
+      .text('Reset View');
 
-    // Add severity indicators
-    eventGroups.filter(d => d.severity && d.severity !== 'low')
-      .append('circle')
-      .attr('r', 3)
-      .attr('cx', 8)
-      .attr('cy', -8)
-      .attr('fill', d => d.severity === 'high' ? '#ef4444' : '#f59e0b')
-      .attr('stroke', '#fff')
-      .attr('stroke-width', 1);
+    // Initial render
+    updateTimeline();
+    updateXAxis();
+    updateEvents();
+
+    // Add pan instructions
+    g.append('text')
+      .attr('x', width / 2)
+      .attr('y', -5)
+      .attr('text-anchor', 'middle')
+      .style('font-size', '12px')
+      .style('fill', '#6b7280')
+      .text('🖱️ Click and drag to pan • Scroll to zoom • Click events for details');
 
   }, [events]);
 
@@ -252,13 +395,17 @@ export function DomainTimelineChart({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="w-full overflow-x-auto">
+          <div 
+            ref={containerRef}
+            className="w-full overflow-hidden border rounded bg-gray-50"
+            style={{ height: '400px' }}
+          >
             <svg
               ref={svgRef}
               width="100%"
               height={400}
-              viewBox="0 0 800 400"
-              className="border rounded bg-gray-50 min-w-full"
+              className="cursor-move select-none"
+              style={{ display: 'block' }}
             />
           </div>
 
