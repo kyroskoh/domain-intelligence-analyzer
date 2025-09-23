@@ -26,8 +26,6 @@ services:
       # API Keys (if needed for external services)
       - WHOIS_API_KEY=${WHOIS_API_KEY:-}
       - DNS_API_KEY=${DNS_API_KEY:-}
-    networks:
-      - domain-analyzer-network
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
@@ -59,8 +57,6 @@ services:
       - NEXT_PUBLIC_API_URL=http://backend:4001
       - PORT=4000
       - HOSTNAME=0.0.0.0
-    networks:
-      - domain-analyzer-network
     depends_on:
       backend:
         condition: service_healthy
@@ -87,8 +83,6 @@ services:
       - "6379:6379"
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-    networks:
-      - domain-analyzer-network
     volumes:
       - redis-data:/data
     healthcheck:
@@ -118,8 +112,6 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
-    networks:
-      - domain-analyzer-network
     depends_on:
       - frontend
       - backend
@@ -139,10 +131,6 @@ services:
     profiles:
       - nginx
 
-networks:
-  domain-analyzer-network:
-    driver: bridge
-    name: domain-analyzer-network
 
 volumes:
   backend-logs:
