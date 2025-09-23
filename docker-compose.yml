@@ -10,10 +10,10 @@ services:
     container_name: domain-analyzer-backend
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "4001:4001"
     environment:
       - NODE_ENV=production
-      - PORT=3001
+      - PORT=4001
       - LOG_LEVEL=info
       # Redis configuration (optional)
       - REDIS_URL=${REDIS_URL:-}
@@ -24,14 +24,14 @@ services:
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
       # Security
-      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000,http://frontend:3000}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4000,http://frontend:4000}
       # API Keys (if needed for external services)
       - WHOIS_API_KEY=${WHOIS_API_KEY:-}
       - DNS_API_KEY=${DNS_API_KEY:-}
     networks:
       - domain-analyzer-network
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -55,11 +55,11 @@ services:
     container_name: domain-analyzer-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "4000:4000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://backend:3001
-      - PORT=3000
+      - NEXT_PUBLIC_API_URL=http://backend:4001
+      - PORT=4000
       - HOSTNAME=0.0.0.0
     networks:
       - domain-analyzer-network
@@ -67,7 +67,7 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:4000/api/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) }).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -27,7 +27,7 @@ import monitoringRoutes, { setWebSocketService } from '@/routes/monitoring';
 
 const app: Application = express();
 const server = createServer(app);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 4001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
 // Initialize WebSocket service
@@ -87,7 +87,7 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],

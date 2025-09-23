@@ -50,7 +50,7 @@ npm run dev
 ```
 
 ### 2. Test Theme Switching
-Visit: `http://localhost:3000/test-charts`
+Visit: `http://localhost:4000/test-charts`
 
 ### 3. Verify Fixes
 - **Domain Timeline**: 
@@ -69,7 +69,7 @@ Visit: `http://localhost:3000/test-charts`
   - All text should be theme-appropriate
 
 ### 4. Test Real Domain Analysis
-Visit: `http://localhost:3000/?domain=google.com`
+Visit: `http://localhost:4000/?domain=google.com`
 - Switch between light/dark themes
 - Verify all charts adapt properly
 - Check that details panels use theme colors

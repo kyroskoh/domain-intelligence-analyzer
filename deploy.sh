@@ -176,7 +176,7 @@ wait_for_health() {
     local attempt=0
     
     while [ $attempt -lt $max_attempts ]; do
-        if curl -f http://localhost:3001/health &> /dev/null && curl -f http://localhost:3000/api/health &> /dev/null; then
+        if curl -f http://localhost:4001/health &> /dev/null && curl -f http://localhost:4000/api/health &> /dev/null; then
             success "All services are healthy"
             return 0
         fi
@@ -200,9 +200,9 @@ show_status() {
     
     echo ""
     log "Access URLs:"
-    echo "  Frontend:     http://localhost:3000"
-    echo "  Backend API:  http://localhost:3001"
-    echo "  API Docs:     http://localhost:3001/docs"
+    echo "  Frontend:     http://localhost:4000"
+    echo "  Backend API:  http://localhost:4001"
+    echo "  API Docs:     http://localhost:4001/docs"
     
     if [[ "$PROFILE" == *"redis"* ]]; then
         echo "  Redis:        localhost:6379"

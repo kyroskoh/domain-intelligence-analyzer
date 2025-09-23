@@ -4,9 +4,9 @@
   "description": "DomainPeek Frontend - Interactive domain analysis dashboard with D3.js visualizations",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
+    "dev": "next dev -p 4000",
     "build": "next build",
-    "start": "next start -p 3000",
+    "start": "next start -p 4000",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },

@@ -53,14 +53,14 @@ Key environment variables in `.env`:
 ```bash
 # Application
 NODE_ENV=production
-NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_API_URL=http://localhost:4001
 
 # Backend
-PORT=3001
+PORT=4001
 LOG_LEVEL=info
 
 # Security
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:4000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
@@ -137,9 +137,9 @@ Both frontend and backend use multi-stage builds:
 docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 # Access:
-# - Frontend: http://localhost:3000  
-# - Backend API: http://localhost:3001
-# - API Docs: http://localhost:3001/docs
+# - Frontend: http://localhost:4000  
+# - Backend API: http://localhost:4001
+# - API Docs: http://localhost:4001/docs
 ```
 
 ### 2. Production (Basic)
@@ -149,8 +149,8 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 docker-compose up -d
 
 # Access:
-# - Application: http://localhost:3000
-# - API: http://localhost:3001
+# - Application: http://localhost:4000
+# - API: http://localhost:4001
 ```
 
 ### 3. Production with Redis
@@ -210,8 +210,8 @@ All services include health checks:
 docker-compose ps
 
 # Detailed health info
-curl http://localhost:3001/health
-curl http://localhost:3000/api/health
+curl http://localhost:4001/health
+curl http://localhost:4000/api/health
 ```
 
 ### Logs
@@ -264,8 +264,8 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 3. **Service Dependencies**
    ```bash
    # Check service health
-   docker-compose exec backend curl http://localhost:3001/health
-   docker-compose exec frontend curl http://localhost:3000/api/health
+   docker-compose exec backend curl http://localhost:4001/health
+   docker-compose exec frontend curl http://localhost:4000/api/health
    ```
 
 4. **Network Issues**

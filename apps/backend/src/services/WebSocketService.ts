@@ -35,7 +35,7 @@ class WebSocketService {
     // Initialize Socket.IO with CORS configuration
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:3000'],
+        origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000'],
         methods: ['GET', 'POST'],
         credentials: true,
       },

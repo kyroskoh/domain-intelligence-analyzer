@@ -106,8 +106,8 @@ domain-intelligence-analyzer/
    npm run dev
    
    # Or start individually
-   npm run dev:frontend  # http://localhost:3000
-   npm run dev:backend   # http://localhost:3001
+   npm run dev:frontend  # http://localhost:4000
+   npm run dev:backend   # http://localhost:4001
    ```
 
 ### Using Docker (Recommended for Production)
@@ -124,7 +124,7 @@ npm run docker:down
 
 ### Web Interface
 
-1. **Navigate to the application** at `http://localhost:3000`
+1. **Navigate to the application** at `http://localhost:4000`
 2. **Enter a domain name** in the search box (e.g., `example.com`)
 3. **View comprehensive analysis** including:
    - Domain registration details (WHOIS/RDAP)
@@ -136,23 +136,23 @@ npm run docker:down
 
 #### Testing Chart Themes
 
-Visit `http://localhost:3000/test-charts` to test all visualization components with theme switching capabilities.
+Visit `http://localhost:4000/test-charts` to test all visualization components with theme switching capabilities.
 
 ### API Usage
 
 ```bash
 # Analyze a domain
-curl -X GET "http://localhost:3001/api/analyze/example.com"
+curl -X GET "http://localhost:4001/api/analyze/example.com"
 
 # Get DNS records only
-curl -X GET "http://localhost:3001/api/dns/example.com"
+curl -X GET "http://localhost:4001/api/dns/example.com"
 
 # Export analysis as PDF
-curl -X GET "http://localhost:3001/api/export/example.com.pdf"
+curl -X GET "http://localhost:4001/api/export/example.com.pdf"
 ```
 
 ### API Documentation
-Visit `http://localhost:3000/docs` for interactive Swagger documentation.
+Visit `http://localhost:4000/docs` for interactive Swagger documentation.
 
 ## 🎨 Theme System
 
@@ -183,7 +183,7 @@ Visit `/test-charts` to interactively test all chart components:
 npm run dev
 
 # Navigate to theme testing page
-# http://localhost:3000/test-charts
+# http://localhost:4000/test-charts
 ```
 
 ### Technical Implementation
@@ -221,7 +221,7 @@ npm run test:backend
 npm run dev
 
 # Visit chart testing page
-# http://localhost:3000/test-charts
+# http://localhost:4000/test-charts
 ```
 
 The test page includes:
@@ -295,7 +295,7 @@ npm run docker:down      # Stop Docker services
 
 **Backend (`apps/backend/.env`)**
 ```env
-PORT=3001
+PORT=4001
 NODE_ENV=development
 REDIS_URL=redis://localhost:6379
 RATE_LIMIT_WINDOW_MS=900000
@@ -306,7 +306,7 @@ DNS_TIMEOUT_MS=5000
 
 **Frontend (`apps/frontend/.env.local`)**
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3001
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
 NEXT_PUBLIC_APP_ENV=development
 ```
 

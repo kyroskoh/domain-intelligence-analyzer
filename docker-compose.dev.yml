@@ -22,7 +22,7 @@ services:
       target: dev
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:3001
+      - NEXT_PUBLIC_API_URL=http://backend:4001
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules
