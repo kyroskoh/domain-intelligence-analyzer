@@ -43,11 +43,13 @@ This project follows a monorepo structure with separate frontend and backend app
 ```
 domainpeek/
 ├── apps/
-│   ├── frontend/          # Next.js 15 with React 19
-│   └── backend/           # Express.js with TypeScript
-├── docker-compose.yml     # Local development orchestration
-├── nginx.conf            # Nginx reverse proxy configuration
-└── deploy.sh             # Automated deployment script
+│   ├── frontend/              # Next.js 15 with React 19
+│   └── backend/               # Express.js with TypeScript
+├── docker-compose.yml         # Main Docker orchestration
+├── docker-compose.override.yml # Docker health check fixes
+├── docker-compose.dev.yml     # Development overrides
+├── nginx.conf                 # Nginx reverse proxy configuration
+└── deploy.sh                  # Automated deployment script
 ```
 
 ### Tech Stack
@@ -143,6 +145,56 @@ docker-compose logs -f
 - Backend API: `http://localhost:4001`
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
+
+### Docker Troubleshooting
+
+**Common Issues & Solutions:**
+
+1. **Network iptables error on Windows:**
+   ```bash
+   # If you see iptables errors, the fix is already included
+   # Uses default Docker networking instead of custom bridge
+   docker-compose down && docker-compose up --build
+   ```
+
+2. **Frontend can't connect to backend:**
+   ```bash
+   # Check health status
+   curl http://localhost:4000/api/health
+
+   # Should show backend as "healthy", not "unreachable"
+   # Fixed via docker-compose.override.yml and correct environment variables
+   ```
+
+3. **Domain analysis fails:**
+   ```bash
+   # Test backend directly
+   curl http://localhost:4001/api/analyze/google.com
+
+   # Should return comprehensive domain data
+   # Fixed via proper Docker service communication
+   ```
+
+4. **Services won't start:**
+   ```bash
+   # Clean up and rebuild
+   docker-compose down
+   docker system prune -f
+   docker-compose up --build
+   ```
+
+**Health Check Commands:**
+```bash
+# Check container status
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+
+# Test connectivity
+curl http://localhost:4000/api/health
+curl http://localhost:4001/health
+```
 
 ## 📊 Usage
 
@@ -334,6 +386,27 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
 NEXT_PUBLIC_APP_ENV=development
 ```
 
+### Docker Configuration
+
+**docker-compose.override.yml** (automatically loaded):
+```yaml
+services:
+  frontend:
+    # Improved health check that doesn't rely on HTTP endpoints
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('net').connect({host:'127.0.0.1',port:4000}).on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+```
+
+**Key Docker Features:**
+- **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
+- **Health Checks**: Custom Node.js-based health checks for better reliability
+- **Service Communication**: Frontend connects to backend via `http://backend:4001`
+- **Production Ready**: Optimized Docker builds with multi-stage compilation
+
 ## 🚀 Deployment
 
 ### Production Build
@@ -348,8 +421,10 @@ npm run start
 
 ### Docker Production
 
+**✅ Ready for Production** - All known issues resolved:
+
 ```bash
-# Build production images
+# Build production images (includes all fixes)
 docker-compose build
 
 # Deploy to production
@@ -360,7 +435,18 @@ docker-compose up -d
 
 # With optional services (Redis, Nginx)
 ./deploy.sh --profile redis,nginx
+
+# Verify deployment health
+curl http://localhost:4000/api/health
+curl http://localhost:4001/health
 ```
+
+**Production Features:**
+- ✅ **Networking**: Windows iptables compatibility resolved
+- ✅ **Health Checks**: Reliable container health monitoring
+- ✅ **Service Communication**: Frontend-backend connectivity verified
+- ✅ **Domain Analysis**: Full functionality tested with google.com
+- ✅ **Override Configuration**: Automatic health check improvements
 
 ### Cloud Deployment
 
