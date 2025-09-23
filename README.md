@@ -41,13 +41,13 @@ A production-grade web application that provides comprehensive domain analysis i
 This project follows a monorepo structure with separate frontend and backend applications:
 
 ```
-domain-intelligence-analyzer/
+domainpeek/
 ├── apps/
 │   ├── frontend/          # Next.js 15 with React 19
 │   └── backend/           # Express.js with TypeScript
-├── packages/              # Shared utilities and types
 ├── docker-compose.yml     # Local development orchestration
-└── .github/workflows/     # CI/CD pipelines
+├── nginx.conf            # Nginx reverse proxy configuration
+└── deploy.sh             # Automated deployment script
 ```
 
 ### Tech Stack
@@ -84,8 +84,8 @@ domain-intelligence-analyzer/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/kyroskoh/domain-intelligence-analyzer.git
-   cd domain-intelligence-analyzer
+   git clone https://github.com/kyroskoh/domainpeek.git
+   cd domainpeek
    ```
 
 2. **Install dependencies**
@@ -112,13 +112,37 @@ domain-intelligence-analyzer/
 
 ### Using Docker (Recommended for Production)
 
+**Quick Start:**
 ```bash
-# Build and start all services
-npm run docker:up
+# Clone and start with Docker
+git clone https://github.com/kyroskoh/domainpeek.git
+cd domainpeek
+docker-compose up --build
+```
+
+**Development with Docker:**
+```bash
+# Start in development mode with hot reload
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+
+# Or use the deployment script
+./deploy.sh --environment development
 
 # Stop all services
-npm run docker:down
+docker-compose down
+
+# View logs
+docker-compose logs -f
+
+# Optional services (Redis cache, Nginx proxy)
+./deploy.sh --profile redis,nginx
 ```
+
+**Available services:**
+- Frontend: `http://localhost:4000`
+- Backend API: `http://localhost:4001`
+- API Documentation: `http://localhost:4001/docs`
+- Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
 
 ## 📊 Usage
 
@@ -152,7 +176,7 @@ curl -X GET "http://localhost:4001/api/export/example.com.pdf"
 ```
 
 ### API Documentation
-Visit `http://localhost:4000/docs` for interactive Swagger documentation.
+Visit `http://localhost:4001/docs` for interactive Swagger documentation.
 
 ## 🎨 Theme System
 
@@ -326,10 +350,16 @@ npm run start
 
 ```bash
 # Build production images
-docker-compose -f docker-compose.prod.yml build
+docker-compose build
 
 # Deploy to production
-docker-compose -f docker-compose.prod.yml up -d
+docker-compose up -d
+
+# Or use the automated deployment script
+./deploy.sh --environment production
+
+# With optional services (Redis, Nginx)
+./deploy.sh --profile redis,nginx
 ```
 
 ### Cloud Deployment
@@ -399,9 +429,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: support@domain-intelligence-analyzer.com
-- 🐛 Issues: [GitHub Issues](https://github.com/kyroskoh/domain-intelligence-analyzer/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/kyroskoh/domain-intelligence-analyzer/discussions)
+- 📧 Email: support@domainpeek.com
+- 🐛 Issues: [GitHub Issues](https://github.com/kyroskoh/domainpeek/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/kyroskoh/domainpeek/discussions)
 
 ---
 
