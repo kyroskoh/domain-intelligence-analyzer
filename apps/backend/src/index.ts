@@ -41,7 +41,7 @@ const swaggerOptions = {
   definition: {
     openapi: '3.0.0',
     info: {
-      title: 'Domain Intelligence Analyzer API',
+      title: 'DomainPeek API',
       version: '1.0.0',
       description: 'Comprehensive domain analysis API providing WHOIS, RDAP, DNS, and security insights',
     },
@@ -120,7 +120,7 @@ if (NODE_ENV !== 'test') {
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   explorer: true,
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Domain Intelligence Analyzer API',
+  customSiteTitle: 'DomainPeek API',
 }));
 
 // Health check
@@ -147,7 +147,7 @@ app.get('/api/websocket/stats', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'Domain Intelligence Analyzer API',
+    message: 'DomainPeek API',
     version: '1.0.0',
     docs: '/docs',
     health: '/health',

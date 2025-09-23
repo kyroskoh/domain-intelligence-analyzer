@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Domain Intelligence Analyzer",
+  title: "DomainPeek",
   description: "Comprehensive domain analysis with WHOIS, DNS, RDAP, and security insights",
+  authors: [{ name: "Kyros Koh" }],
 };
 
 export default function RootLayout({

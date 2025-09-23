@@ -104,7 +104,7 @@ export class RdapService {
         timeout: this.timeout,
         headers: {
           'Accept': 'application/rdap+json',
-          'User-Agent': 'Domain-Intelligence-Analyzer/1.0.0',
+          'User-Agent': 'DomainPeek/1.0.0',
         },
       });
 

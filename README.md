@@ -1,4 +1,4 @@
-# Domain Intelligence Analyzer
+# DomainPeek
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 

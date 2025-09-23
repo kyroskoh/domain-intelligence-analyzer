@@ -1,7 +1,7 @@
 {
-  "name": "@domain-intelligence-analyzer/frontend",
+  "name": "@domainpeek/frontend",
   "version": "1.0.0",
-  "description": "Domain Intelligence Analyzer Frontend - Interactive domain analysis dashboard with D3.js visualizations",
+  "description": "DomainPeek Frontend - Interactive domain analysis dashboard with D3.js visualizations",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",

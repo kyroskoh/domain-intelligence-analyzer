@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Domain Intelligence Analyzer - Docker Deployment Script
+# DomainPeek - Docker Deployment Script
 # This script automates the build and deployment process
 
 set -e  # Exit on error
@@ -42,7 +42,7 @@ success() {
 
 show_help() {
     cat << EOF
-Domain Intelligence Analyzer - Docker Deployment Script
+DomainPeek - Docker Deployment Script
 
 Usage: ./deploy.sh [OPTIONS]
 
@@ -256,7 +256,7 @@ fi
 # Main execution
 trap cleanup_on_exit EXIT
 
-log "Starting Docker deployment for Domain Intelligence Analyzer"
+log "Starting Docker deployment for DomainPeek"
 log "Environment: $ENVIRONMENT"
 
 if [ -n "$PROFILE" ]; then
@@ -271,4 +271,4 @@ wait_for_health
 show_status
 
 success "Deployment completed successfully!"
-success "Your Domain Intelligence Analyzer is now running."
+success "Your DomainPeek is now running."

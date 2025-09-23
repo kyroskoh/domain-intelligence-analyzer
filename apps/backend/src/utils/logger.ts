@@ -15,7 +15,7 @@ export const logger = winston.createLogger({
     timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
     customFormat
   ),
-  defaultMeta: { service: 'domain-intelligence-analyzer' },
+  defaultMeta: { service: 'domainpeek' },
   transports: [
     // Write all logs with importance level of `error` or less to `error.log`
     new winston.transports.File({ 

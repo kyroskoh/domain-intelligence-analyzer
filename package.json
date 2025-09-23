@@ -1,7 +1,7 @@
 {
-  "name": "domain-intelligence-analyzer",
+  "name": "domainpeek",
   "version": "1.0.0",
-  "description": "Production-grade Domain Intelligence Analyzer with WHOIS/RDAP/DNS analysis, interactive D3.js visualizations, and comprehensive security scoring",
+  "description": "Production-grade DomainPeek with WHOIS/RDAP/DNS analysis, interactive D3.js visualizations, and comprehensive security scoring",
   "keywords": ["domain", "whois", "rdap", "dns", "security", "analysis", "visualization", "d3", "threejs", "nextjs"],
   "repository": {
     "type": "git",

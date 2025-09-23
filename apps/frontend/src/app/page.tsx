@@ -32,7 +32,7 @@ export default function Home() {
                 <Globe className="h-6 w-6" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Domain Intelligence Analyzer</h1>
+                <h1 className="text-2xl font-bold">DomainPeek</h1>
                 <p className="text-sm text-muted-foreground">
                   Comprehensive domain analysis and security insights
                 </p>
@@ -149,7 +149,7 @@ export default function Home() {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <p>
-              © 2024 Domain Intelligence Analyzer. Built with Next.js and React.
+              © 2025 DomainPeek. Built with Next.js and React.
             </p>
             <div className="flex items-center space-x-4">
               <span>Powered by public WHOIS, RDAP, and DNS services</span>

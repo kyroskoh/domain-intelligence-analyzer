@@ -1,7 +1,7 @@
 {
-  "name": "@domain-intelligence-analyzer/backend",
+  "name": "@domainpeek/backend",
   "version": "1.0.0",
-  "description": "Domain Intelligence Analyzer Backend API - Express server with WHOIS/RDAP/DNS analysis, Redis caching, and comprehensive security scoring",
+  "description": "DomainPeek Backend API - Express server with WHOIS/RDAP/DNS analysis, Redis caching, and comprehensive security scoring",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/index.ts",

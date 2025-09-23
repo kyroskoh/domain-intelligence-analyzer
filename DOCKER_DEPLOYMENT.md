@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This document provides comprehensive instructions for deploying the Domain Intelligence Analyzer using Docker and Docker Compose.
+This document provides comprehensive instructions for deploying DomainPeek using Docker and Docker Compose.
 
 ## Prerequisites
 
