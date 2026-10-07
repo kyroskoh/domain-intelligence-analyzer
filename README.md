@@ -57,7 +57,7 @@ domainpeek/
 ### Tech Stack
 
 **Frontend**
-- Next.js 15 with App Router
+- Next.js 15.5.27 with App Router (patched 15.5.x line)
 - React 19 with TypeScript
 - TailwindCSS 4 for styling
 - D3.js for interactive data visualizations
@@ -65,11 +65,12 @@ domainpeek/
 - React Query for data fetching
 - Framer Motion for UI animations
 - next-themes for seamless theme management
+- `jspdf` ^4.2.1 for PDF export
 
 **Backend**
-- Express.js with TypeScript
+- Express.js ^4.22.3 with TypeScript
 - Redis for caching and session management
-- `whoiser` (WHOIS + IANA TLD list), `tldts` (public suffix), axios RDAP client
+- `whoiser` (WHOIS + IANA TLD list), `tldts` (public suffix), `axios` ^1.20 RDAP client
 - OpenAPI/Swagger documentation
 - Jest unit tests + TLD smoke script
 - Docker containerization
@@ -525,13 +526,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 | Concern | Package | Notes |
 |---------|---------|--------|
-| RDAP bootstrap / PSL | `tldts`, `axios` | Full IANA `dns.json` bootstrap cached under `apps/backend/data/` |
+| RDAP bootstrap / PSL | `tldts`, `axios` ^1.20 | Full IANA `dns.json` bootstrap cached under `apps/backend/data/` |
 | WHOIS | `whoiser` (^1.18) | Maintained; IANA auto-discovery + `allTlds()` for every delegated gTLD/ccTLD |
+| Frontend framework | `next` 15.5.27, `eslint-config-next` 15.5.27 | Stay on patched 15.5.x (not Next 16) |
+| PDF export | `jspdf` ^4.2.1 | Client-side reports |
+| HTTP API | `express` ^4.22.3 | Stay on Express 4 |
 | Dev runner | `tsx` | Replaces deprecated/unmaintained `ts-node-dev` |
 | HTTP tests | `supertest` ^7 | Current major; avoid deprecated v6 |
-| Validation | `joi` (built-in types) | Removed deprecated `@types/joi` / `@types/socket.io` |
+| Validation | `joi` ^17.13.8 (built-in types) | Removed deprecated `@types/joi` / `@types/socket.io` |
 
 Removed unused `rdap-client` (unmaintained install scripts). Prefer RDAP via IANA bootstrap + axios.
+
+### Dependency security
+
+Root `package.json` uses npm `overrides` to pin patched transitive versions (`postcss`, `sharp`, `ws`, `tar`, `proxy-addr`, `shell-quote`, and related). After `npm install`, run `npm audit` — critical/high should be clear. Residual moderate findings may remain in the Jest → `sprintf-js` chain (no patched `sprintf-js` release yet; do not force-downgrade `ts-jest`/`jest`).
 
 ## 🙏 Acknowledgments
 

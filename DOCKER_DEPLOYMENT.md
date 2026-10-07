@@ -141,6 +141,13 @@ Both frontend and backend use multi-stage builds based on `node:22-alpine`:
 - `builder` - Build stage
 - `runner` - Production runtime
 
+After dependency or security bumps (for example Next.js 15.5.27 / Express 4.22.x patches in the lockfile), rebuild without cache so images pick up the new `package-lock.json`:
+
+```bash
+docker compose build --no-cache
+docker compose up -d
+```
+
 ### Image Sizes (Approximate)
 
 - Backend: ~150MB
