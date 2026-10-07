@@ -40,35 +40,39 @@ log_json "A" "debug-docker-npm-network.sh:host" "host registry.npmjs.org ping" \
 # #region agent log
 # Hypothesis B: Docker build network cannot reach npm registry
 # #endregion
+echo "(B) docker npm ping — may pull node:22-alpine first..."
 DOCKER_NPM_OUT="$(docker run --rm node:22-alpine sh -c 'npm ping --registry=https://registry.npmjs.org 2>&1; echo EXIT:$?' 2>&1 || true)"
 DOCKER_NPM_EXIT="$(echo "$DOCKER_NPM_OUT" | sed -n 's/^EXIT://p' | tail -1)"
-DOCKER_NPM_SNIP="$(echo "$DOCKER_NPM_OUT" | tr '\n' ' ' | cut -c1-400)"
+DOCKER_NPM_SNIP="$(echo "$DOCKER_NPM_OUT" | tr '\n' ' ' | cut -c1-400 | sed 's/"/\\"/g')"
 log_json "B" "debug-docker-npm-network.sh:docker-npm" "docker container npm ping" \
   "{\"exit\":\"${DOCKER_NPM_EXIT:-unknown}\",\"snippet\":\"$DOCKER_NPM_SNIP\"}"
 
 # #region agent log
 # Hypothesis C: Alpine apk repos also flaky (broader Docker egress)
 # #endregion
+echo "(C) docker apk update — can take 1–3 minutes with no output..."
 DOCKER_APK_OUT="$(docker run --rm node:22-alpine sh -c 'apk update 2>&1 | tail -5; echo EXIT:$?' 2>&1 || true)"
 DOCKER_APK_EXIT="$(echo "$DOCKER_APK_OUT" | sed -n 's/^EXIT://p' | tail -1)"
-DOCKER_APK_SNIP="$(echo "$DOCKER_APK_OUT" | tr '\n' ' ' | cut -c1-400)"
+DOCKER_APK_SNIP="$(echo "$DOCKER_APK_OUT" | tr '\n' ' ' | cut -c1-400 | sed 's/"/\\"/g')"
 log_json "C" "debug-docker-npm-network.sh:docker-apk" "docker container apk update" \
   "{\"exit\":\"${DOCKER_APK_EXIT:-unknown}\",\"snippet\":\"$DOCKER_APK_SNIP\"}"
 
 # #region agent log
 # Hypothesis D: npm defaults (few retries / short timeouts) abort on first reset
 # #endregion
+echo "(D) reading npm defaults inside container..."
 DOCKER_CFG_OUT="$(docker run --rm node:22-alpine sh -c 'npm config get fetch-retries; npm config get fetch-retry-maxtimeout; npm config get fetch-timeout; npm config get maxsockets' 2>&1 || true)"
-DOCKER_CFG_SNIP="$(echo "$DOCKER_CFG_OUT" | tr '\n' '|' | cut -c1-200)"
+DOCKER_CFG_SNIP="$(echo "$DOCKER_CFG_OUT" | tr '\n' '|' | cut -c1-200 | sed 's/"/\\"/g')"
 log_json "D" "debug-docker-npm-network.sh:npm-defaults" "npm default network settings in node:22-alpine" \
   "{\"values\":\"$DOCKER_CFG_SNIP\"}"
 
 # #region agent log
 # Hypothesis E: concurrent BuildKit installs amplify resets — timed single-package install
 # #endregion
+echo "(E) docker npm install left-pad — can take several minutes..."
 DOCKER_INSTALL_OUT="$(docker run --rm node:22-alpine sh -c 'npm install left-pad@1.3.0 --no-save --fetch-retries=5 --fetch-retry-maxtimeout=120000 --fetch-timeout=300000 2>&1; echo EXIT:$?' 2>&1 || true)"
 DOCKER_INSTALL_EXIT="$(echo "$DOCKER_INSTALL_OUT" | sed -n 's/^EXIT://p' | tail -1)"
-DOCKER_INSTALL_SNIP="$(echo "$DOCKER_INSTALL_OUT" | tr '\n' ' ' | cut -c1-400)"
+DOCKER_INSTALL_SNIP="$(echo "$DOCKER_INSTALL_OUT" | tr '\n' ' ' | cut -c1-400 | sed 's/"/\\"/g')"
 log_json "E" "debug-docker-npm-network.sh:docker-install" "docker single-package npm install with retries" \
   "{\"exit\":\"${DOCKER_INSTALL_EXIT:-unknown}\",\"snippet\":\"$DOCKER_INSTALL_SNIP\"}"
 
