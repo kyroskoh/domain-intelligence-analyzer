@@ -32,7 +32,7 @@ services:
 
   # Development tools container (optional)
   dev-tools:
-    image: node:18-alpine
+    image: node:22-alpine
     container_name: domain-analyzer-dev-tools
     working_dir: /workspace
     volumes:

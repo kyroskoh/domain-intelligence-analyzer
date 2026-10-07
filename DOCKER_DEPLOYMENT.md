@@ -5,6 +5,7 @@ This document provides comprehensive instructions for deploying DomainPeek using
 ## Prerequisites
 
 - Docker Engine 20.10+ and Docker Compose 2.0+
+- Node.js 22 LTS (container base image: `node:22-alpine`)
 - At least 2GB RAM available for containers
 - 5GB disk space for images and data
 
@@ -115,7 +116,7 @@ docker-compose --profile redis --profile nginx up -d
 
 ### Multi-stage Build
 
-Both frontend and backend use multi-stage builds:
+Both frontend and backend use multi-stage builds based on `node:22-alpine`:
 
 - `deps` - Production dependencies
 - `dev` - Development environment

@@ -1,4 +1,4 @@
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import { logger } from '@/utils/logger';
 import { WhoisService } from './whois/WhoisService';
 import { DnsService } from './dns/DnsService';
@@ -33,7 +33,7 @@ export class DomainAnalysisService {
    * Performs comprehensive domain analysis
    */
   async analyzeDomain(request: DomainAnalysisRequest): Promise<DomainAnalysisResponse> {
-    const requestId = uuidv4();
+    const requestId = randomUUID();
     const startTime = Date.now();
     const domain = request.domain.toLowerCase();
     
@@ -326,7 +326,7 @@ export class DomainAnalysisService {
    */
   async getWhoisData(domain: string): Promise<WhoisData> {
     const meta: AnalysisMeta = {
-      requestId: uuidv4(),
+      requestId: randomUUID(),
       duration: 0,
       cached: false,
       errors: [],
@@ -345,7 +345,7 @@ export class DomainAnalysisService {
    */
   async getRdapData(domain: string): Promise<RdapData> {
     const meta: AnalysisMeta = {
-      requestId: uuidv4(),
+      requestId: randomUUID(),
       duration: 0,
       cached: false,
       errors: [],
@@ -364,7 +364,7 @@ export class DomainAnalysisService {
    */
   async getDnsData(domain: string): Promise<DnsData> {
     const meta: AnalysisMeta = {
-      requestId: uuidv4(),
+      requestId: randomUUID(),
       duration: 0,
       cached: false,
       errors: [],

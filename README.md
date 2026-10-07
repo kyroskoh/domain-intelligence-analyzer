@@ -80,7 +80,7 @@ Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locall
 
 ### Prerequisites
 
-- Node.js >= 18.0.0
+- Node.js >= 22.0.0
 - npm >= 8.0.0
 - Docker & Docker Compose (optional, for local development)
 - Redis (optional, will use in-memory cache if not available)
@@ -410,6 +410,7 @@ services:
 ```
 
 **Key Docker Features:**
+- **Node.js 22 LTS**: Frontend and backend images use `node:22-alpine`
 - **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
 - **Health Checks**: Custom Node.js-based health checks for better reliability
 - **Service Communication**: Frontend connects to backend via `http://backend:4001`
