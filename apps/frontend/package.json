@@ -1,6 +1,6 @@
 {
   "name": "@domainpeek/frontend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DomainPeek Frontend - Interactive domain analysis dashboard with D3.js visualizations",
   "private": true,
   "scripts": {
@@ -46,7 +46,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^10.12.0",
+    "eslint": "^9.39.0",
     "eslint-config-next": "15.5.3",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.8",

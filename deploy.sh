@@ -71,8 +71,8 @@ check_dependencies() {
         error "Docker is not installed or not in PATH"
     fi
     
-    if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-        error "Docker Compose is not installed"
+    if ! docker compose version &> /dev/null; then
+        error "Docker Compose V2 is not installed (requires the docker compose plugin)"
     fi
     
     # Check Docker daemon
@@ -136,12 +136,7 @@ build_images() {
         log "Using profiles: $PROFILE"
     fi
     
-    # Build command
-    if command -v docker-compose &> /dev/null; then
-        docker-compose $COMPOSE_FILES build $BUILD_ARGS
-    else
-        docker compose $COMPOSE_FILES build $BUILD_ARGS
-    fi
+    docker compose $COMPOSE_FILES build $BUILD_ARGS
     
     success "Images built successfully"
 }
@@ -159,12 +154,7 @@ deploy_services() {
         export COMPOSE_PROFILES="$PROFILE"
     fi
     
-    # Deploy command
-    if command -v docker-compose &> /dev/null; then
-        docker-compose $COMPOSE_FILES up -d
-    else
-        docker compose $COMPOSE_FILES up -d
-    fi
+    docker compose $COMPOSE_FILES up --build -d
     
     success "Services deployed successfully"
 }
@@ -192,11 +182,7 @@ wait_for_health() {
 show_status() {
     log "Deployment status:"
     
-    if command -v docker-compose &> /dev/null; then
-        docker-compose ps
-    else
-        docker compose ps
-    fi
+    docker compose ps
     
     echo ""
     log "Access URLs:"
@@ -215,7 +201,7 @@ show_status() {
 
 cleanup_on_exit() {
     if [ $? -ne 0 ]; then
-        error "Deployment failed. Check logs with: docker-compose logs"
+        error "Deployment failed. Check logs with: docker compose logs"
     fi
 }
 

@@ -33,9 +33,9 @@
     "format": "prettier --write \"**/*.{js,ts,tsx,json,md}\"",
     "format:check": "prettier --check \"**/*.{js,ts,tsx,json,md}\"",
     "clean": "rimraf apps/*/dist apps/*/.next apps/*/node_modules/.cache",
-    "docker:build": "docker-compose build",
-    "docker:up": "docker-compose up --build",
-    "docker:down": "docker-compose down"
+    "docker:build": "docker compose build",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -55,7 +55,9 @@
   },
   "overrides": {
     "glob": "^13.0.6",
-    "eslint": "^10.12.0",
-    "rimraf": "^6.0.1"
+    "rimraf": "^6.0.1",
+    "@domainpeek/frontend": {
+      "eslint": "^9.39.0"
+    }
   }
 }

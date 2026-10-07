@@ -4,7 +4,7 @@ This document provides comprehensive instructions for deploying DomainPeek using
 
 ## Prerequisites
 
-- Docker Engine 20.10+ and Docker Compose 2.0+
+- Docker Engine 20.10+ with the Compose V2 plugin (`docker compose`)
 - Node.js 22 LTS (container base image: `node:22-alpine`)
 - At least 2GB RAM available for containers
 - 5GB disk space for images and data
@@ -26,23 +26,23 @@ cp .env.example .env
 
 ```bash
 # Build and start services
-docker-compose up -d
+docker compose up --build -d
 
 # Check service status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ### 3. Development Deployment
 
 ```bash
 # Start with development overrides
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # Follow logs
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+docker compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
 ```
 
 ## Configuration
@@ -76,13 +76,13 @@ Enable optional services using Docker Compose profiles:
 
 ```bash
 # Enable Redis caching
-docker-compose --profile redis up -d
+docker compose --profile redis up --build -d
 
 # Enable Nginx reverse proxy
-docker-compose --profile nginx up -d
+docker compose --profile nginx up --build -d
 
 # Enable both
-docker-compose --profile redis --profile nginx up -d
+docker compose --profile redis --profile nginx up --build -d
 ```
 
 ## Service Architecture
@@ -136,7 +136,7 @@ Both frontend and backend use multi-stage builds based on `node:22-alpine`:
 
 ```bash
 # Hot reloading with volume mounts
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # Access:
 # - Frontend: http://localhost:4000  
@@ -148,7 +148,7 @@ docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 ```bash
 # Production build with health checks
-docker-compose up -d
+docker compose up --build -d
 
 # Access:
 # - Application: http://localhost:4000
@@ -160,7 +160,7 @@ docker-compose up -d
 ```bash
 # Enable Redis for caching
 export COMPOSE_PROFILES=redis
-docker-compose up -d
+docker compose up --build -d
 
 # Redis available at localhost:6379
 ```
@@ -170,7 +170,7 @@ docker-compose up -d
 ```bash
 # Full stack with reverse proxy
 export COMPOSE_PROFILES=redis,nginx
-docker-compose up -d
+docker compose up --build -d
 
 # Access:
 # - Application: http://localhost (port 80)
@@ -209,7 +209,7 @@ All services include health checks:
 
 ```bash
 # Check health status
-docker-compose ps
+docker compose ps
 
 # Detailed health info
 curl http://localhost:4001/health
@@ -220,14 +220,14 @@ curl http://localhost:4000/api/health
 
 ```bash
 # All services
-docker-compose logs -f
+docker compose logs -f
 
 # Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
+docker compose logs -f backend
+docker compose logs -f frontend
 
 # Follow new logs only
-docker-compose logs -f --tail=50
+docker compose logs -f --tail=50
 ```
 
 ### Resource Monitoring
@@ -256,18 +256,18 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 2. **Build Failures**
    ```bash
    # Clean build without cache
-   docker-compose build --no-cache
+   docker compose build --no-cache
    
    # Remove all containers and rebuild
-   docker-compose down --volumes --remove-orphans
-   docker-compose up --build
+   docker compose down --volumes --remove-orphans
+   docker compose up --build
    ```
 
 3. **Service Dependencies**
    ```bash
    # Check service health
-   docker-compose exec backend curl http://localhost:4001/health
-   docker-compose exec frontend curl http://localhost:4000/api/health
+   docker compose exec backend curl http://localhost:4001/health
+   docker compose exec frontend curl http://localhost:4000/api/health
    ```
 
 4. **Network Issues**
@@ -319,20 +319,20 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 
 ```bash
 # Backup Redis data (if using)
-docker-compose exec redis redis-cli BGSAVE
+docker compose exec redis redis-cli BGSAVE
 
 # Backup logs
-docker-compose logs > backup-logs-$(date +%Y%m%d).log
+docker compose logs > backup-logs-$(date +%Y%m%d).log
 ```
 
 ### Updates
 
 ```bash
 # Pull latest images
-docker-compose pull
+docker compose pull
 
-# Restart with new images
-docker-compose up -d
+# Rebuild and restart with new images
+docker compose up --build -d
 
 # Clean old images
 docker image prune -f
@@ -342,13 +342,13 @@ docker image prune -f
 
 ```bash
 # Stop all services
-docker-compose down
+docker compose down
 
 # Stop and remove volumes
-docker-compose down --volumes
+docker compose down --volumes
 
 # Remove everything including networks
-docker-compose down --volumes --remove-orphans
+docker compose down --volumes --remove-orphans
 
 # System cleanup
 docker system prune -af
@@ -361,7 +361,7 @@ docker system prune -af
 1. Modify `nginx.conf` for your needs
 2. Restart nginx service:
    ```bash
-   docker-compose restart nginx
+   docker compose restart nginx
    ```
 
 ### Redis Configuration
@@ -383,7 +383,7 @@ Create additional compose files:
 # docker-compose.production.yml
 
 # Use with:
-docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up --build -d
 ```
 
 ## Support
@@ -391,7 +391,7 @@ docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 For deployment issues:
 
 1. Check this documentation
-2. Review logs: `docker-compose logs`
+2. Review logs: `docker compose logs`
 3. Verify configuration: `.env` file and docker-compose.yml
 4. Test health endpoints
 5. Check GitHub issues or create a new one

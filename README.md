@@ -122,22 +122,22 @@ Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locall
 # Clone and start with Docker
 git clone https://github.com/kyroskoh/domainpeek.git
 cd domainpeek
-docker-compose up --build
+docker compose up --build
 ```
 
 **Development with Docker:**
 ```bash
 # Start in development mode with hot reload
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # Or use the deployment script
 ./deploy.sh --environment development
 
 # Stop all services
-docker-compose down
+docker compose down
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Optional services (Redis cache, Nginx proxy)
 ./deploy.sh --profile redis,nginx
@@ -157,7 +157,7 @@ docker-compose logs -f
    ```bash
    # If you see iptables errors, the fix is already included
    # Uses default Docker networking instead of custom bridge
-   docker-compose down && docker-compose up --build
+   docker compose down && docker compose up --build
    ```
 
 2. **Frontend can't connect to backend:**
@@ -181,18 +181,18 @@ docker-compose logs -f
 4. **Services won't start:**
    ```bash
    # Clean up and rebuild
-   docker-compose down
+   docker compose down
    docker system prune -f
-   docker-compose up --build
+   docker compose up --build
    ```
 
 **Health Check Commands:**
 ```bash
 # Check container status
-docker-compose ps
+docker compose ps
 
 # View logs
-docker-compose logs -f
+docker compose logs -f
 
 # Test connectivity
 curl http://localhost:4000/api/health
@@ -433,11 +433,8 @@ npm run start
 **✅ Ready for Production** - All known issues resolved:
 
 ```bash
-# Build production images (includes all fixes)
-docker-compose build
-
-# Deploy to production
-docker-compose up -d
+# Build and deploy production images
+docker compose up --build -d
 
 # Or use the automated deployment script
 ./deploy.sh --environment production
