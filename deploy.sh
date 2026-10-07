@@ -56,6 +56,11 @@ OPTIONS:
     -u, --pull         Pull latest base images before building
     -h, --help         Show this help message
 
+ENVIRONMENT:
+    PUBLIC_HOST         Optional override for the public IP in CORS_ORIGINS.
+                        Default: first global IPv4 from `ip -4 addr` (ip a).
+                        Always also merges domainpeek.xyz (http/https + www).
+
 EXAMPLES:
     ./deploy.sh                                    # Basic production deployment
     ./deploy.sh -e development                     # Development with hot reload
@@ -130,6 +135,87 @@ check_dependencies() {
     success "Dependencies check passed"
 }
 
+detect_public_host() {
+    # Optional override only — default is local interface IP from `ip a`
+    if [ -n "${PUBLIC_HOST:-}" ]; then
+        printf '%s' "$PUBLIC_HOST"
+        return 0
+    fi
+
+    local ip=""
+    if command -v ip >/dev/null 2>&1; then
+        # Prefer first global-scope IPv4 (same idea as `ip a` / `ip -4 addr`)
+        ip="$(ip -4 -o addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | head -1)"
+        if [ -z "$ip" ]; then
+            ip="$(ip -4 addr show 2>/dev/null | awk '/inet / && $2 !~ /^127\./ { print $2; exit }' | cut -d/ -f1)"
+        fi
+        if [ -z "$ip" ]; then
+            ip="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i <= NF; i++) if ($i == "src") { print $(i + 1); exit }}')"
+        fi
+    fi
+    if [ -z "$ip" ]; then
+        ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+    fi
+
+    printf '%s' "$ip"
+}
+
+# Ensure .env CORS_ORIGINS includes public host, domainpeek.xyz, localhost (merge, do not wipe extras)
+ensure_cors_origins() {
+    local host
+    host="$(detect_public_host)"
+
+    local required=(
+        "http://localhost:4000"
+        "http://domainpeek.xyz"
+        "https://domainpeek.xyz"
+        "http://www.domainpeek.xyz"
+        "https://www.domainpeek.xyz"
+    )
+
+    if [ -n "$host" ]; then
+        required+=(
+            "http://${host}"
+            "http://${host}:4000"
+        )
+    else
+        warn "Could not detect public host; set PUBLIC_HOST=... to include IP origins in CORS_ORIGINS"
+    fi
+
+    local current=""
+    if grep -q '^CORS_ORIGINS=' .env 2>/dev/null; then
+        current="$(grep '^CORS_ORIGINS=' .env | head -1 | cut -d= -f2- | tr -d '\r')"
+    fi
+
+    local merged="$current"
+    local origin
+    for origin in "${required[@]}"; do
+        case ",${merged}," in
+            *",${origin},"*) ;;
+            *)
+                if [ -n "$merged" ]; then
+                    merged="${merged},${origin}"
+                else
+                    merged="${origin}"
+                fi
+                ;;
+        esac
+    done
+
+    if grep -q '^CORS_ORIGINS=' .env 2>/dev/null; then
+        # Linux sed; deploy.sh targets Linux hosts
+        sed -i "s|^CORS_ORIGINS=.*|CORS_ORIGINS=${merged}|" .env
+    else
+        printf '\nCORS_ORIGINS=%s\n' "$merged" >> .env
+    fi
+
+    if [ -n "$host" ]; then
+        log "CORS_ORIGINS includes ${host} + domainpeek.xyz (override IP with PUBLIC_HOST=...)"
+    else
+        log "CORS_ORIGINS includes domainpeek.xyz + localhost"
+    fi
+}
+
 setup_environment() {
     log "Setting up environment..."
     
@@ -142,6 +228,13 @@ setup_environment() {
         else
             error ".env.example template not found"
         fi
+    fi
+
+    ensure_cors_origins
+
+    # Nginx profile mounts ./ssl — create empty dir so compose does not fail
+    if [[ "${PROFILE}" == *"nginx"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"nginx"* ]]; then
+        mkdir -p ssl
     fi
     
     # Verify required environment variables

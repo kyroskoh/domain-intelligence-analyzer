@@ -160,7 +160,7 @@ mkdir -p ssl
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
 - With nginx profile: `http://localhost/` (port 80; proxies UI + `/api/` + `/health`)
 
-For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.env` to a URL browsers can reach (not `http://backend:4001`), rebuild the frontend image, and include that origin in `CORS_ORIGINS`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
+For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.env` to a URL browsers can reach (not `http://backend:4001`), then rebuild the frontend image. `./deploy.sh` auto-merges `CORS_ORIGINS` for localhost, **domainpeek.xyz** (http/https + www), and the host IPv4 from `ip a`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
 
 ### Docker Troubleshooting
 
@@ -194,7 +194,6 @@ For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.en
    ```bash
    # Often Docker bridge MTU — see DOCKER_DEPLOYMENT.md troubleshooting
    # Quick daemon settings: dns + mtu 1400, then systemctl restart docker
-   ./scripts/debug-docker-npm-network.sh
    ```
 
 5. **Domain analysis fails:**
@@ -476,7 +475,8 @@ curl http://localhost/health
 ```
 
 **Production notes:**
-- Set public `NEXT_PUBLIC_API_BASE_URL` / `CORS_ORIGINS` before building for remote browsers
+- Set public `NEXT_PUBLIC_API_BASE_URL` before building for remote browsers
+- `./deploy.sh` auto-merges `CORS_ORIGINS` (host IP from `ip a` + domainpeek.xyz); optional `PUBLIC_HOST=<ip>` override
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
 

@@ -84,6 +84,8 @@ PORT=4001
 LOG_LEVEL=info
 
 # Security — include every origin users will open in a browser
+# ./deploy.sh auto-merges localhost, domainpeek.xyz (http/https + www), http://<ip-from-ip-a>[:4000]
+# Optional override: PUBLIC_HOST=<ip> ./deploy.sh
 CORS_ORIGINS=http://localhost:4000,http://frontend:4000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -96,7 +98,9 @@ RATE_LIMIT_MAX_REQUESTS=100
 # COMPOSE_PROFILES=redis,nginx
 ```
 
-**Public VPS / remote browser access:** set both `NEXT_PUBLIC_*` values to a URL the **browser** can reach (for example `http://YOUR_PUBLIC_IP:4001`, or `http://YOUR_PUBLIC_IP` when nginx is on port 80). Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. `NEXT_PUBLIC_*` values must be present at **image build** time; changing them in a running container alone has no effect. Rebuild the frontend after updating them, and expand `CORS_ORIGINS` to include the public site origin.
+**Public VPS / remote browser access:** set both `NEXT_PUBLIC_*` values to a URL the **browser** can reach (for example `http://YOUR_PUBLIC_IP:4001`, or `http://YOUR_PUBLIC_IP` when nginx is on port 80). Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. `NEXT_PUBLIC_*` values must be present at **image build** time; changing them in a running container alone has no effect. Rebuild the frontend after updating them.
+
+`./deploy.sh` merges `CORS_ORIGINS` automatically: `http://localhost:4000`, `http(s)://domainpeek.xyz`, `http(s)://www.domainpeek.xyz`, plus `http://<first-global-ipv4>` and `http://<first-global-ipv4>:4000` from `ip -4 addr` (`ip a`). Existing origins are kept. Override the detected IP with `PUBLIC_HOST=<ip>` only when needed.
 
 ### Service Profiles
 
@@ -322,7 +326,8 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 
 5. **UI shows Offline / API calls fail from a remote browser**
    - Backend may still be healthy on `:4001` while the UI calls `http://localhost:4001` inside the visitor's browser.
-   - Set `NEXT_PUBLIC_API_BASE_URL` (and `NEXT_PUBLIC_API_URL`) to the public API origin, rebuild the frontend, and update `CORS_ORIGINS`.
+   - Set `NEXT_PUBLIC_API_BASE_URL` (and `NEXT_PUBLIC_API_URL`) to the public API origin and rebuild the frontend.
+   - Run `./deploy.sh` so `CORS_ORIGINS` picks up the host IP (`ip a`) and domainpeek.xyz.
    - Prefer nginx (`--profile nginx`) so the site is served on port 80 and API paths share that origin.
 
 6. **Docker build hangs on `apk` / Alpine (bridge networking)**
@@ -344,8 +349,6 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    # Quick verify (should finish in seconds)
    timeout 60 docker run --rm node:22-alpine sh -c 'apk update && apk add --no-cache libc6-compat && echo APK_OK'
    ```
-
-   Optional deeper probe: `./scripts/debug-docker-npm-network.sh` (writes `debug-2d8d9e.log`).
 
 7. **Network Issues**
    ```bash
