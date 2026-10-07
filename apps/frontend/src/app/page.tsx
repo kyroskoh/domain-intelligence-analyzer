@@ -40,6 +40,15 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-2">
+              <a
+                href="https://domainpeek.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Live demo
+              </a>
+
               {/* Theme Toggle */}
               <ThemeToggle />
               
@@ -152,7 +161,15 @@ export default function Home() {
               © 2025 DomainPeek. Built with Next.js and React.
             </p>
             <div className="flex items-center space-x-4">
-              <span>Powered by public WHOIS, RDAP, and DNS services</span>
+              <a
+                href="https://domainpeek.xyz"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline-offset-4 hover:underline"
+              >
+                domainpeek.xyz
+              </a>
+              <span>WHOIS + RDAP for all IANA-listed TLDs</span>
             </div>
           </div>
         </div>

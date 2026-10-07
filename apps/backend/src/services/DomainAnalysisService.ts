@@ -69,66 +69,69 @@ export class DomainAnalysisService {
         return cachedResult;
       }
 
-      // Perform analysis with parallel execution where possible
-      const analysisPromises: Array<Promise<any>> = [];
-      
-      // WHOIS lookup
-      if (request.includeWhois !== false) {
-        analysisPromises.push(
-          this.performWhoisLookup(domain, meta).catch(error => {
-            meta.errors.push(`WHOIS lookup failed: ${error.message}`);
-            return null;
-          })
-        );
-      }
+      // RDAP-first for bootstrapped TLDs, then WHOIS (fallback / complementary), DNS in parallel with WHOIS
+      await this.rdapService.ensureReady();
 
-      // RDAP lookup
+      let rdapData: RdapData | null = null;
       if (request.includeRdap !== false) {
-        analysisPromises.push(
-          this.performRdapLookup(domain, meta).catch(error => {
-            meta.errors.push(`RDAP lookup failed: ${error.message}`);
+        try {
+          rdapData = await this.performRdapLookup(domain, meta);
+          if (rdapData) {
+            response.rdap = rdapData;
+          }
+        } catch (error) {
+          meta.warnings.push(`RDAP lookup failed: ${(error as Error).message}`);
+        }
+      }
+
+      const secondaryPromises: Array<Promise<WhoisData | DnsData | null>> = [];
+      const wantWhois = request.includeWhois !== false;
+      const wantDns = request.includeDns !== false;
+      const rdapThin = !rdapData || this.isRdapThin(rdapData);
+
+      if (wantWhois) {
+        secondaryPromises.push(
+          this.performWhoisLookup(domain, meta).catch((error) => {
+            if (!rdapData) {
+              meta.errors.push(`WHOIS lookup failed: ${(error as Error).message}`);
+            } else {
+              meta.warnings.push(`WHOIS lookup failed: ${(error as Error).message}`);
+            }
             return null;
           })
         );
       }
 
-      // DNS lookup
-      if (request.includeDns !== false) {
-        analysisPromises.push(
-          this.performDnsLookup(domain, meta).catch(error => {
-            meta.errors.push(`DNS lookup failed: ${error.message}`);
+      if (wantDns) {
+        secondaryPromises.push(
+          this.performDnsLookup(domain, meta).catch((error) => {
+            meta.errors.push(`DNS lookup failed: ${(error as Error).message}`);
             return null;
           })
         );
       }
 
-      // Execute all lookups in parallel
-      const results = await Promise.allSettled(analysisPromises);
-      
-      let resultIndex = 0;
-      
-      // Process WHOIS results
-      if (request.includeWhois !== false) {
-        const whoisResult = results[resultIndex++];
+      const secondaryResults = await Promise.allSettled(secondaryPromises);
+      let secondaryIndex = 0;
+
+      if (wantWhois) {
+        const whoisResult = secondaryResults[secondaryIndex++];
         if (whoisResult.status === 'fulfilled' && whoisResult.value) {
-          response.whois = whoisResult.value;
+          response.whois = whoisResult.value as WhoisData;
+        } else if (rdapData && rdapThin) {
+          meta.warnings.push('WHOIS unavailable; using RDAP registration data only');
         }
       }
 
-      // Process RDAP results
-      if (request.includeRdap !== false) {
-        const rdapResult = results[resultIndex++];
-        if (rdapResult.status === 'fulfilled' && rdapResult.value) {
-          response.rdap = rdapResult.value;
-        }
-      }
-
-      // Process DNS results
-      if (request.includeDns !== false) {
-        const dnsResult = results[resultIndex++];
+      if (wantDns) {
+        const dnsResult = secondaryResults[secondaryIndex++];
         if (dnsResult.status === 'fulfilled' && dnsResult.value) {
-          response.dns = dnsResult.value;
+          response.dns = dnsResult.value as DnsData;
         }
+      }
+
+      if (response.rdap && response.whois) {
+        response.whois = this.mergeRegistrationData(response.whois, response.rdap);
       }
 
       // Perform security analysis if requested
@@ -210,9 +213,12 @@ export class DomainAnalysisService {
     const cacheKey = CacheService.generateRdapKey(domain);
     
     try {
+      await this.rdapService.ensureReady();
+
       // Check if RDAP is available for this domain
       if (!this.rdapService.isRdapAvailable(domain)) {
-        meta.warnings.push(`RDAP not available for domain TLD`);
+        const tld = this.rdapService.extractTld(domain);
+        meta.warnings.push(`RDAP not available for TLD .${tld}; falling back to WHOIS`);
         return null;
       }
 
@@ -234,6 +240,58 @@ export class DomainAnalysisService {
       logger.warn(`RDAP lookup failed for ${domain}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * RDAP is thin when key registration fields are missing.
+   */
+  private isRdapThin(rdap: RdapData): boolean {
+    const hasRegistrar = Boolean(rdap.registrar?.name);
+    const hasEvents = Array.isArray(rdap.events) && rdap.events.length > 0;
+    const hasNameservers = Array.isArray(rdap.nameservers) && rdap.nameservers.length > 0;
+    return !(hasRegistrar && (hasEvents || hasNameservers));
+  }
+
+  /**
+   * Fill gaps in WHOIS structured fields from RDAP when available.
+   */
+  private mergeRegistrationData(whois: WhoisData, rdap: RdapData): WhoisData {
+    const merged: WhoisData = { ...whois };
+
+    if (!merged.registrar?.name && rdap.registrar?.name) {
+      merged.registrar = {
+        name: rdap.registrar.name,
+        url: rdap.registrar.url,
+      };
+    }
+
+    if ((!merged.nameservers || merged.nameservers.length === 0) && rdap.nameservers?.length) {
+      merged.nameservers = rdap.nameservers
+        .map((ns) => (ns.ldhName || ns.unicodeName || '').toLowerCase())
+        .filter(Boolean);
+    }
+
+    if ((!merged.status || merged.status.length === 0) && rdap.status?.length) {
+      merged.status = [...rdap.status];
+    }
+
+    for (const event of rdap.events || []) {
+      const action = (event.eventAction || '').toLowerCase();
+      if ((action === 'registration' || action === 'registered') && !merged.createdDate) {
+        merged.createdDate = event.eventDate;
+      }
+      if ((action === 'expiration' || action === 'expired') && !merged.expirationDate) {
+        merged.expirationDate = event.eventDate;
+      }
+      if (
+        (action === 'last changed' || action === 'last update of rdap database' || action === 'last changed') &&
+        !merged.updatedDate
+      ) {
+        merged.updatedDate = event.eventDate;
+      }
+    }
+
+    return merged;
   }
 
   /**
@@ -409,6 +467,7 @@ export class DomainAnalysisService {
    * Cleanup resources
    */
   async close(): Promise<void> {
+    await this.rdapService.close();
     await this.cacheService.close();
     logger.info('Domain analysis service closed');
   }

@@ -2,10 +2,12 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
+**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+
 ## 🚀 Features
 
 ### Core Analysis Engine
-- **WHOIS & RDAP Lookup**: Real-time domain registration information with fallback mechanisms
+- **WHOIS & RDAP Lookup**: Real-time domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral fallback.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
 - **ASN & IP Intelligence**: Autonomous System Number and IP geolocation data
@@ -60,7 +62,6 @@ domainpeek/
 - TailwindCSS 4 for styling
 - D3.js for interactive data visualizations
 - Theme-aware chart system with automatic light/dark mode switching
-- Three.js for animations
 - React Query for data fetching
 - Framer Motion for UI animations
 - next-themes for seamless theme management
@@ -68,12 +69,14 @@ domainpeek/
 **Backend**
 - Express.js with TypeScript
 - Redis for caching and session management
-- Node.js DNS libraries and WHOIS clients
+- `whoiser` (WHOIS + IANA TLD list), `tldts` (public suffix), axios RDAP client
 - OpenAPI/Swagger documentation
-- Jest for testing
+- Jest unit tests + TLD smoke script
 - Docker containerization
 
 ## 🚦 Getting Started
+
+Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locally:
 
 ### Prerequisites
 
@@ -271,24 +274,28 @@ The theme system uses:
 - next-themes integration for persistent theme preferences
 
 ## 🧪 Testing
-## 🧪 Testing
 
 ### Automated Testing
 
 ```bash
-# Run all tests
+# Run all workspace tests
 npm test
 
-# Run tests with coverage
-npm run test:coverage
+# Backend unit tests (WHOIS/RDAP/analysis)
+npm run test --workspace=@domainpeek/backend
 
-# Run tests in watch mode
-npm run test:watch
+# Backend coverage
+npm run test:coverage --workspace=@domainpeek/backend
 
-# Run specific test suites
-npm run test:frontend
-npm run test:backend
+# TLD smoke checks (IANA list + optional live API)
+# Start backend first for HTTP checks: npm run dev:backend
+npm run smoke:tlds --workspace=@domainpeek/backend
 ```
+
+Backend suites cover:
+- IANA RDAP bootstrap loading and new gTLD availability (`.xyz`, `.fans`, `.app`, …)
+- WHOIS parsing, server overrides, and `whoiser` integration
+- RDAP-first / WHOIS-fallback analysis orchestration
 
 ### Interactive Chart Testing
 
@@ -311,8 +318,7 @@ The test page includes:
 ### Project Structure
 
 ```
-```
-aps/frontend/src/
+apps/frontend/src/
 ├── app/                   # Next.js App Router pages
 │   └── test-charts/       # Chart testing and theme validation page
 ├── components/            # Reusable React components
@@ -325,14 +331,14 @@ aps/frontend/src/
 │   └── chart-colors.ts    # Theme-aware color system for charts
 └── types/                 # TypeScript type definitions
 apps/backend/src/
-├── controllers/           # Request handlers
+├── routes/                # Express route handlers (analyze, whois, rdap, dns, …)
 ├── services/              # Business logic
-│   ├── whois/            # WHOIS lookup services
-│   ├── rdap/             # RDAP client services
-│   ├── dns/              # DNS resolution services
-│   └── analysis/         # Security analysis engine
+│   ├── whois/             # WHOIS via whoiser (all IANA TLDs)
+│   ├── rdap/              # RDAP + IANA dns.json bootstrap
+│   ├── dns/               # DNS resolution
+│   └── security/          # Security scoring
 ├── middleware/            # Express middleware
-├── routes/                # API route definitions
+├── scripts/               # Smoke / ops scripts
 └── types/                 # TypeScript interfaces
 ```
 
@@ -376,7 +382,9 @@ NODE_ENV=development
 REDIS_URL=redis://localhost:6379
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
-WHOIS_TIMEOUT_MS=5000
+WHOIS_TIMEOUT_MS=10000
+WHOIS_FOLLOW=2
+RDAP_TIMEOUT_MS=5000
 DNS_TIMEOUT_MS=5000
 ```
 
@@ -480,11 +488,13 @@ The application is designed to be deployed on:
 - [x] Theme-aware chart system (light/dark mode)
 - [x] Security scoring system
 - [x] Export functionality (JSON, CSV, PDF)
-- [x] WHOIS/RDAP lookup engine
+- [x] WHOIS/RDAP lookup engine (all IANA TLDs / new gTLDs)
+- [x] Dedicated `/api/whois` and `/api/rdap` routes wired to services
 - [x] DNS analysis engine
 - [x] Complete web interface integration
 - [x] Domain topology network visualizations
 - [x] Security threat analysis and scoring
+- [x] Live demo at [domainpeek.xyz](https://domainpeek.xyz)
 
 ### Phase 2: Advanced Features
 - [x] Interactive D3.js visualizations
@@ -506,11 +516,24 @@ The application is designed to be deployed on:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## 📦 Key libraries (maintained)
+
+| Concern | Package | Notes |
+|---------|---------|--------|
+| RDAP bootstrap / PSL | `tldts`, `axios` | Full IANA `dns.json` bootstrap cached under `apps/backend/data/` |
+| WHOIS | `whoiser` (^1.18) | Maintained; IANA auto-discovery + `allTlds()` for every delegated gTLD/ccTLD |
+| Dev runner | `tsx` | Replaces deprecated/unmaintained `ts-node-dev` |
+| HTTP tests | `supertest` ^7 | Current major; avoid deprecated v6 |
+| Validation | `joi` (built-in types) | Removed deprecated `@types/joi` / `@types/socket.io` |
+
+Removed unused `rdap-client` (unmaintained install scripts). Prefer RDAP via IANA bootstrap + axios.
+
 ## 🙏 Acknowledgments
 
 - Built with inspiration from [who.is](https://who.is)
+- Live demo: [domainpeek.xyz](https://domainpeek.xyz)
 - Uses open-source DNS and WHOIS data sources
-- Leverages IANA registries for RDAP endpoints
+- Leverages [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json) for all RDAP-capable TLDs
 - Community feedback and contributions
 
 ## 📞 Support

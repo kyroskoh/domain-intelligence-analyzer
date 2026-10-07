@@ -13,9 +13,10 @@ interface WhoisPanelProps {
   isLoading: boolean;
   compact?: boolean;
   className?: string;
+  warning?: string;
 }
 
-export default function WhoisPanel({ data, isLoading, compact = false, className }: WhoisPanelProps) {
+export default function WhoisPanel({ data, isLoading, compact = false, className, warning }: WhoisPanelProps) {
   if (isLoading) {
     return (
       <Card className={className}>
@@ -53,7 +54,12 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Database className="h-12 w-12 mx-auto mb-2" />
-            <p>No WHOIS data available</p>
+            <p>{warning || 'No WHOIS data available'}</p>
+            {!warning && (
+              <p className="text-xs mt-2">
+                WHOIS is attempted for all delegated TLDs via registry servers and IANA referral.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

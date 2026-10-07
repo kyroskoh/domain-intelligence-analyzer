@@ -11,6 +11,8 @@ import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
 import WebSocketService from '@/services/WebSocketService';
+import { RdapService } from '@/services/rdap/RdapService';
+import { WhoisService } from '@/services/whois/WhoisService';
 
 import { errorHandler } from '@/middleware/errorHandler';
 import { notFoundHandler } from '@/middleware/notFoundHandler';
@@ -159,12 +161,33 @@ app.get('/', (req, res) => {
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Start server
-server.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT} in ${NODE_ENV} mode`);
-  logger.info(`📚 API Documentation available at http://localhost:${PORT}/docs`);
-  logger.info(`🔌 WebSocket service available at ws://localhost:${PORT}`);
-});
+// Warm IANA RDAP bootstrap + WHOIS TLD list (all gTLDs / ccTLDs) before accepting traffic
+const rdapBootstrapService = new RdapService();
+const whoisBootstrapService = new WhoisService();
+
+async function startServer(): Promise<void> {
+  try {
+    await rdapBootstrapService.ensureReady();
+    logger.info(`RDAP bootstrap ready (${rdapBootstrapService.getBootstrapSize()} TLDs)`);
+  } catch (error) {
+    logger.warn('RDAP bootstrap warm-up failed; using fallback seed:', error);
+  }
+
+  try {
+    const tlds = await whoisBootstrapService.getAllTlds();
+    logger.info(`WHOIS IANA TLD list ready (${tlds.length} TLDs)`);
+  } catch (error) {
+    logger.warn('WHOIS TLD list warm-up failed:', error);
+  }
+
+  server.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT} in ${NODE_ENV} mode`);
+    logger.info(`API Documentation available at http://localhost:${PORT}/docs`);
+    logger.info(`WebSocket service available at ws://localhost:${PORT}`);
+  });
+}
+
+void startServer();
 
 // Graceful shutdown
 process.on('SIGTERM', () => {

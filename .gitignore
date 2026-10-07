@@ -27,6 +27,12 @@ out/
 *.swo
 *~
 
+# Claude Code / local agent settings
+.claude/
+
+# Cached IANA RDAP bootstrap (regenerated at runtime)
+apps/backend/data/
+
 # OS generated files
 .DS_Store
 .DS_Store?

@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { validateDomain } from '@/middleware/validation';
 import { logger } from '@/utils/logger';
+import { DomainAnalysisService } from '@/services/DomainAnalysisService';
 
 const router = Router();
+const analysisService = new DomainAnalysisService();
 
 /**
  * @swagger
@@ -42,22 +44,14 @@ const router = Router();
  */
 router.get('/:domain', validateDomain, async (req: Request, res: Response) => {
   const { domain } = req.params;
-  
+
   logger.info(`RDAP lookup for domain: ${domain}`, {
     domain,
     ip: req.ip,
   });
 
   try {
-    // TODO: Implement actual RDAP lookup service
-    const response = {
-      domain,
-      message: 'RDAP lookup not yet implemented',
-      handle: null,
-      status: [],
-      events: [],
-    };
-
+    const response = await analysisService.getRdapData(domain);
     res.json(response);
   } catch (error) {
     logger.error('RDAP lookup failed:', error);

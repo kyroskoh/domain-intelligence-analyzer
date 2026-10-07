@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { validateDomain } from '@/middleware/validation';
 import { logger } from '@/utils/logger';
+import { DomainAnalysisService } from '@/services/DomainAnalysisService';
 
 const router = Router();
+const analysisService = new DomainAnalysisService();
 
 /**
  * @swagger
@@ -40,22 +42,14 @@ const router = Router();
  */
 router.get('/:domain', validateDomain, async (req: Request, res: Response) => {
   const { domain } = req.params;
-  
+
   logger.info(`WHOIS lookup for domain: ${domain}`, {
     domain,
     ip: req.ip,
   });
 
   try {
-    // TODO: Implement actual WHOIS lookup service
-    const response = {
-      domain,
-      message: 'WHOIS lookup not yet implemented',
-      registrar: null,
-      registrant: null,
-      nameservers: [],
-    };
-
+    const response = await analysisService.getWhoisData(domain);
     res.json(response);
   } catch (error) {
     logger.error('WHOIS lookup failed:', error);

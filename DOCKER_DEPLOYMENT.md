@@ -90,12 +90,13 @@ docker-compose --profile redis --profile nginx up -d
 
 1. **Backend** (`backend`)
    - Node.js API server
-   - Port: 3001
+   - Port: 4001
    - Health check: `/health`
+   - Warms IANA RDAP bootstrap + WHOIS TLD list on startup
 
 2. **Frontend** (`frontend`) 
    - Next.js web application
-   - Port: 3000
+   - Port: 4000
    - Health check: `/api/health`
 
 ### Optional Services
@@ -245,8 +246,8 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 1. **Port Conflicts**
    ```bash
    # Check port usage
-   netstat -tlnp | grep :3000
-   netstat -tlnp | grep :3001
+   netstat -tlnp | grep :4000
+   netstat -tlnp | grep :4001
    
    # Change ports in docker-compose.yml if needed
    ```

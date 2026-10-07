@@ -32,6 +32,7 @@ export interface WhoisData {
   registrar?: {
     name: string;
     url?: string;
+    ianaId?: string;
     abuseContactEmail?: string;
     abuseContactPhone?: string;
   };

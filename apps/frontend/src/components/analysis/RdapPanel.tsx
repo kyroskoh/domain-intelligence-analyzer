@@ -14,9 +14,10 @@ interface RdapPanelProps {
   isLoading: boolean;
   compact?: boolean;
   className?: string;
+  warning?: string;
 }
 
-export default function RdapPanel({ data, isLoading, compact = false, className }: RdapPanelProps) {
+export default function RdapPanel({ data, isLoading, compact = false, className, warning }: RdapPanelProps) {
   if (isLoading) {
     return (
       <Card className={className}>
@@ -54,7 +55,13 @@ export default function RdapPanel({ data, isLoading, compact = false, className 
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Network className="h-12 w-12 mx-auto mb-2" />
-            <p>No RDAP data available</p>
+            <p>{warning || 'No RDAP data available for this TLD'}</p>
+            {!warning && (
+              <p className="text-xs mt-2">
+                RDAP covers all TLDs listed in the IANA RDAP bootstrap (including new gTLDs).
+                WHOIS may still be available as a fallback.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

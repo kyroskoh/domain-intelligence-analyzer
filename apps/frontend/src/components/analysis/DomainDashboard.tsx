@@ -192,6 +192,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         </Alert>
       )}
 
+      {/* Warnings from analysis meta (e.g. RDAP unavailable for TLD) */}
+      {!!domainAnalysis.data?.meta?.warnings?.length && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Analysis Notes</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-4 space-y-1">
+              {domainAnalysis.data.meta.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <OverviewCard
@@ -240,8 +255,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <WhoisPanel data={whoisData.data} isLoading={whoisData.isLoading} compact />
-            <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} compact />
+            <WhoisPanel
+              data={whoisData.data}
+              isLoading={whoisData.isLoading}
+              compact
+              warning={whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+            />
+            <RdapPanel
+              data={rdapData.data}
+              isLoading={rdapData.isLoading}
+              compact
+              warning={
+                domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
+                (rdapData.error ? 'RDAP lookup failed for this domain/TLD' : undefined)
+              }
+            />
             <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} compact />
             <SecurityPanel 
               data={domainAnalysis.data?.security} 
@@ -254,10 +282,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         <TabsContent value="details" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
             <div id="whois-section">
-              <WhoisPanel data={whoisData.data} isLoading={whoisData.isLoading} />
+              <WhoisPanel
+                data={whoisData.data}
+                isLoading={whoisData.isLoading}
+                warning={whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+              />
             </div>
             <div id="rdap-section">
-              <RdapPanel data={rdapData.data} isLoading={rdapData.isLoading} />
+              <RdapPanel
+                data={rdapData.data}
+                isLoading={rdapData.isLoading}
+                warning={
+                  domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
+                  (rdapData.error ? 'RDAP lookup failed for this domain/TLD' : undefined)
+                }
+              />
             </div>
             <div id="dns-section">
               <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} />

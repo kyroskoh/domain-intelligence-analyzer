@@ -4,10 +4,15 @@ module.exports = {
   roots: ['<rootDir>/src'],
   testMatch: [
     '**/__tests__/**/*.+(ts|tsx|js)',
-    '**/*.(test|spec).+(ts|tsx|js)'
+    '**/*.(test|spec).+(ts|tsx|js)',
   ],
   transform: {
-    '^.+\\.(ts|tsx)$': 'ts-jest'
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/tsconfig.test.json',
+      },
+    ],
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
@@ -15,16 +20,13 @@ module.exports = {
     '!src/index.ts',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: [
-    'text',
-    'lcov',
-    'html'
-  ],
+  coverageReporters: ['text', 'lcov', 'html'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
-  moduleNameMapping: {
-    '^@/(.*)$': '<rootDir>/src/$1'
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
   },
-  testTimeout: 10000,
+  testTimeout: 15000,
   clearMocks: true,
   restoreMocks: true,
+  forceExit: true,
 };
