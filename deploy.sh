@@ -18,6 +18,9 @@ PROFILE=""
 REBUILD=false
 PULL=false
 
+# Preserve original args for re-exec after docker group activation
+SCRIPT_ARGS=("$@")
+
 # Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
@@ -64,22 +67,66 @@ EXAMPLES:
 EOF
 }
 
+install_docker() {
+    log "Docker is not installed. Installing via get.docker.com..."
+    local installer
+    installer="$(mktemp)"
+    curl -fsSL https://get.docker.com -o "$installer"
+    sudo sh "$installer"
+    rm -f "$installer"
+    success "Docker installed"
+}
+
+ensure_docker_group() {
+    local current_user="${SUDO_USER:-$USER}"
+
+    if id -nG "$current_user" | grep -qw docker; then
+        return 0
+    fi
+
+    log "Adding $current_user to the docker group (so Docker can run without sudo)..."
+    sudo usermod -aG docker "$current_user"
+    success "User $current_user added to the docker group"
+}
+
 check_dependencies() {
     log "Checking dependencies..."
-    
+
     if ! command -v docker &> /dev/null; then
-        error "Docker is not installed or not in PATH"
+        install_docker
     fi
-    
+
+    ensure_docker_group
+
+    # Start daemon if installed but not running
+    if ! docker info &> /dev/null && ! sudo docker info &> /dev/null; then
+        if command -v systemctl &> /dev/null; then
+            log "Starting Docker daemon..."
+            sudo systemctl enable --now docker || true
+        fi
+    fi
+
+    # Group membership only applies to new sessions; re-exec under docker group if needed
+    if ! docker info &> /dev/null && sudo docker info &> /dev/null; then
+        if [ -z "${DOCKER_GROUP_ACTIVATED:-}" ] \
+            && id -nG "${SUDO_USER:-$USER}" | grep -qw docker \
+            && command -v sg &> /dev/null; then
+            warn "Activating docker group for this session..."
+            local relaunch
+            printf -v relaunch '%q ' "env" "DOCKER_GROUP_ACTIVATED=1" "$SCRIPT_DIR/deploy.sh" "${SCRIPT_ARGS[@]}"
+            exec sg docker -c "$relaunch"
+        fi
+        error "Docker is installed but this shell cannot access it yet. Log out and back in (or run: newgrp docker), then re-run ./deploy.sh"
+    fi
+
     if ! docker compose version &> /dev/null; then
         error "Docker Compose V2 is not installed (requires the docker compose plugin)"
     fi
-    
-    # Check Docker daemon
+
     if ! docker info &> /dev/null; then
         error "Docker daemon is not running"
     fi
-    
+
     success "Dependencies check passed"
 }
 

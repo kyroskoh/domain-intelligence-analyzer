@@ -82,8 +82,10 @@ Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locall
 
 - Node.js >= 22.0.0
 - npm >= 8.0.0
-- Docker & Docker Compose (optional, for local development)
+- Docker & Docker Compose V2 (optional, for local development / production containers)
 - Redis (optional, will use in-memory cache if not available)
+
+If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.docker.com](https://get.docker.com) and add your user to the `docker` group so commands run without `sudo`.
 
 ### Installation
 
@@ -122,6 +124,11 @@ Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locall
 # Clone and start with Docker
 git clone https://github.com/kyroskoh/domainpeek.git
 cd domainpeek
+
+# Recommended: installs Docker if missing, then deploys
+./deploy.sh
+
+# Or manage Compose directly
 docker compose up --build
 ```
 

@@ -8,6 +8,21 @@ This document provides comprehensive instructions for deploying DomainPeek using
 - Node.js 22 LTS (container base image: `node:22-alpine`)
 - At least 2GB RAM available for containers
 - 5GB disk space for images and data
+- `sudo` access on the host (only if Docker needs to be installed)
+
+### Installing Docker (if missing)
+
+If Docker is not installed on the host, install it with the official convenience script, then add your user to the `docker` group so you can run Docker without `sudo`:
+
+```bash
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker "$USER"
+# Apply the new group in the current shell (or log out and back in)
+newgrp docker
+```
+
+`./deploy.sh` performs these steps automatically when Docker is missing: it installs Docker via `get.docker.com`, adds the current user to the `docker` group, starts the daemon if needed, and re-runs under that group so the rest of the deploy can continue without `sudo`.
 
 ## Quick Start
 
@@ -25,7 +40,10 @@ cp .env.example .env
 ### 2. Production Deployment
 
 ```bash
-# Build and start services
+# Recommended: automated deploy (installs Docker if needed)
+./deploy.sh
+
+# Or manage Compose directly
 docker compose up --build -d
 
 # Check service status
