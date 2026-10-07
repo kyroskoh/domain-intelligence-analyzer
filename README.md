@@ -129,7 +129,7 @@ cd domainpeek
 # Recommended: installs Docker if missing, then deploys
 ./deploy.sh
 
-# Or manage Compose directly
+# Or manage Compose directly (frontend + backend only)
 docker compose up --build
 ```
 
@@ -147,8 +147,10 @@ docker compose down
 # View logs
 docker compose logs -f
 
-# Optional services (Redis cache, Nginx proxy)
+# Optional services (Redis cache, Nginx proxy) — not started by default
+mkdir -p ssl
 ./deploy.sh --profile redis,nginx
+# or: docker compose --profile redis --profile nginx up --build -d
 ```
 
 **Available services:**
@@ -156,6 +158,9 @@ docker compose logs -f
 - Backend API: `http://localhost:4001`
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
+- With nginx profile: `http://localhost/` (port 80; proxies UI + `/api/` + `/health`)
+
+For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.env` to a URL browsers can reach (not `http://backend:4001`), rebuild the frontend image, and include that origin in `CORS_ORIGINS`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
 
 ### Docker Troubleshooting
 
@@ -168,25 +173,39 @@ docker compose logs -f
    docker compose down && docker compose up --build
    ```
 
-2. **Frontend can't connect to backend:**
+2. **Frontend can't connect to backend / UI shows Offline remotely:**
    ```bash
-   # Check health status
-   curl http://localhost:4000/api/health
+   # Backend may be fine while the browser still calls localhost:4001
+   curl http://localhost:4001/health
+   curl http://YOUR_PUBLIC_IP:4001/health
 
-   # Should show backend as "healthy", not "unreachable"
-   # Fixed via docker-compose.override.yml and correct environment variables
+   # Fix: point NEXT_PUBLIC_API_BASE_URL at the public API origin, rebuild frontend,
+   # update CORS_ORIGINS, or serve via nginx profile on port 80
    ```
 
-3. **Domain analysis fails:**
+3. **Nginx container missing after `docker compose up`:**
+   ```bash
+   # Nginx is opt-in via Compose profile
+   mkdir -p ssl
+   docker compose --profile nginx up -d
+   ```
+
+4. **Build hangs on Alpine `apk` / flaky Docker egress (Linux VPS):**
+   ```bash
+   # Often Docker bridge MTU — see DOCKER_DEPLOYMENT.md troubleshooting
+   # Quick daemon settings: dns + mtu 1400, then systemctl restart docker
+   ./scripts/debug-docker-npm-network.sh
+   ```
+
+5. **Domain analysis fails:**
    ```bash
    # Test backend directly
    curl http://localhost:4001/api/analyze/google.com
 
    # Should return comprehensive domain data
-   # Fixed via proper Docker service communication
    ```
 
-4. **Services won't start:**
+6. **Services won't start:**
    ```bash
    # Clean up and rebuild
    docker compose down
@@ -438,29 +457,28 @@ npm run start
 
 ### Docker Production
 
-**✅ Ready for Production** - All known issues resolved:
-
 ```bash
-# Build and deploy production images
+# Core stack (frontend + backend)
 docker compose up --build -d
 
 # Or use the automated deployment script
 ./deploy.sh --environment production
 
-# With optional services (Redis, Nginx)
+# With optional services (Redis, Nginx) — nginx is not included unless profiled
+mkdir -p ssl
 ./deploy.sh --profile redis,nginx
 
 # Verify deployment health
 curl http://localhost:4000/api/health
 curl http://localhost:4001/health
+# With nginx profile:
+curl http://localhost/health
 ```
 
-**Production Features:**
-- ✅ **Networking**: Windows iptables compatibility resolved
-- ✅ **Health Checks**: Reliable container health monitoring
-- ✅ **Service Communication**: Frontend-backend connectivity verified
-- ✅ **Domain Analysis**: Full functionality tested with google.com
-- ✅ **Override Configuration**: Automatic health check improvements
+**Production notes:**
+- Set public `NEXT_PUBLIC_API_BASE_URL` / `CORS_ORIGINS` before building for remote browsers
+- On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
+- Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
 
 ### Cloud Deployment
 

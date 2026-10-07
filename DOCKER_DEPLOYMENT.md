@@ -72,36 +72,52 @@ Key environment variables in `.env`:
 ```bash
 # Application
 NODE_ENV=production
+
+# Browser-facing API base URL (baked into the Next.js client at build time).
+# For local Docker without nginx, use the host-published backend port:
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
+# Legacy alias used by some server routes / next.config — keep in sync:
 NEXT_PUBLIC_API_URL=http://localhost:4001
 
 # Backend
 PORT=4001
 LOG_LEVEL=info
 
-# Security
-CORS_ORIGINS=http://localhost:4000
+# Security — include every origin users will open in a browser
+CORS_ORIGINS=http://localhost:4000,http://frontend:4000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # Optional: Redis caching
 # REDIS_URL=redis://redis:6379
 # REDIS_PASSWORD=your_password
+
+# Optional: enable compose profiles without CLI flags
+# COMPOSE_PROFILES=redis,nginx
 ```
+
+**Public VPS / remote browser access:** set both `NEXT_PUBLIC_*` values to a URL the **browser** can reach (for example `http://YOUR_PUBLIC_IP:4001`, or `http://YOUR_PUBLIC_IP` when nginx is on port 80). Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. `NEXT_PUBLIC_*` values must be present at **image build** time; changing them in a running container alone has no effect. Rebuild the frontend after updating them, and expand `CORS_ORIGINS` to include the public site origin.
 
 ### Service Profiles
 
-Enable optional services using Docker Compose profiles:
+Nginx and Redis are **opt-in**. A plain `docker compose up --build` starts only `frontend` and `backend`.
 
 ```bash
 # Enable Redis caching
 docker compose --profile redis up --build -d
 
-# Enable Nginx reverse proxy
+# Enable Nginx reverse proxy (create ./ssl first — compose mounts it)
+mkdir -p ssl
 docker compose --profile nginx up --build -d
 
 # Enable both
 docker compose --profile redis --profile nginx up --build -d
+
+# Or via deploy.sh
+./deploy.sh --profile redis,nginx
 ```
+
+With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Ports 4000/4001 remain available for direct access unless you close them in the firewall.
 
 ## Service Architecture
 
@@ -126,9 +142,10 @@ docker compose --profile redis --profile nginx up --build -d
    - Profile: `redis`
 
 4. **Nginx** (`nginx`)
-   - Reverse proxy and load balancer
+   - Reverse proxy (`/` → frontend, `/api/` and `/health` → backend)
    - Ports: 80, 443
-   - Profile: `nginx`
+   - Profile: `nginx` (not started unless enabled)
+   - Requires `./ssl` directory (empty is fine until you add TLS certs)
 
 ## Docker Images
 
@@ -295,11 +312,46 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    docker compose exec frontend curl http://localhost:4000/api/health
    ```
 
-4. **Network Issues**
+4. **Nginx did not start**
    ```bash
-   # Inspect network
+   # Nginx is behind the "nginx" profile — enable it explicitly
+   mkdir -p ssl
+   docker compose --profile nginx up -d
+   docker compose ps   # expect domain-analyzer-nginx
+   ```
+
+5. **UI shows Offline / API calls fail from a remote browser**
+   - Backend may still be healthy on `:4001` while the UI calls `http://localhost:4001` inside the visitor's browser.
+   - Set `NEXT_PUBLIC_API_BASE_URL` (and `NEXT_PUBLIC_API_URL`) to the public API origin, rebuild the frontend, and update `CORS_ORIGINS`.
+   - Prefer nginx (`--profile nginx`) so the site is served on port 80 and API paths share that origin.
+
+6. **Docker build hangs on `apk` / Alpine (bridge networking)**
+   Host curl to Alpine can work while container egress on the Docker bridge fails (slow/`ECONNRESET` installs, `apk update` hung for minutes). On Linux hosts, set a lower Docker MTU and DNS, then restart Docker:
+
+   ```bash
+   mkdir -p /etc/docker
+   cat >/etc/docker/daemon.json <<'EOF'
+   {
+     "dns": ["8.8.8.8", "1.1.1.1"],
+     "mtu": 1400,
+     "ipv6": false
+   }
+   EOF
+   sysctl -w net.ipv4.ip_forward=1
+   grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf || echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+   systemctl restart docker
+
+   # Quick verify (should finish in seconds)
+   timeout 60 docker run --rm node:22-alpine sh -c 'apk update && apk add --no-cache libc6-compat && echo APK_OK'
+   ```
+
+   Optional deeper probe: `./scripts/debug-docker-npm-network.sh` (writes `debug-2d8d9e.log`).
+
+7. **Network Issues**
+   ```bash
+   # Inspect the compose project network (name includes the project directory)
    docker network ls
-   docker network inspect domain-analyzer-network
+   docker network inspect domain-intelligence-analyzer_default
    ```
 
 ### Performance Tuning
