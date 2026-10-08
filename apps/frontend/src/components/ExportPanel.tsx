@@ -124,7 +124,8 @@ export function ExportPanel({
 
   const handleShare = async () => {
     try {
-      const created = await apiClient.createShareLink(domain);
+      const snapshotId = analysisData.meta?.snapshotId;
+      const created = await apiClient.createShareLink(domain, snapshotId);
       const origin = typeof window !== 'undefined' ? window.location.origin : '';
       const shareUrl = `${origin}${created.path}`;
       await navigator.clipboard.writeText(shareUrl);
@@ -132,7 +133,7 @@ export function ExportPanel({
       
       toast({
         title: "Share Link Copied",
-        description: `Temporary link expires ${new Date(created.expiresAt).toLocaleString()}.`,
+        description: `Link points at a stored snapshot; expires ${new Date(created.expiresAt).toLocaleString()}.`,
       });
       
       setTimeout(() => setShared(false), 3000);
@@ -286,7 +287,7 @@ export function ExportPanel({
                 <li>• JSON: Complete raw data with full structure</li>
                 <li>• CSV: Flattened data suitable for spreadsheets</li>
                 <li>• PDF: Formatted report for presentations</li>
-                <li>• Share links include domain name only (data not stored)</li>
+                <li>• Share links open a stored analysis snapshot (Redis; time-limited)</li>
               </ul>
             </div>
           </div>

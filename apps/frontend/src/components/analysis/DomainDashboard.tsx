@@ -20,9 +20,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
-  useDomainAnalysis, 
-  useClearDomainCache,
-  useAppState
+  useDomainAnalysis,
+  useAnalyzeDomain,
+  useDomainSearch,
+  useAppState,
 } from '@/hooks';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -51,13 +52,15 @@ function filterWarnings(warnings: string[] | undefined, ...keywords: string[]): 
 
 export default function DomainDashboard({ domain, className }: DomainDashboardProps) {
   const { activeView, setActiveView, settings, updateSettings } = useAppState();
-  const clearCacheMutation = useClearDomainCache();
+  const { privateAnalyze } = useDomainSearch();
+  const analyzeMutation = useAnalyzeDomain();
   const { toast } = useToast();
   const dateTimezone = settings.dateTimezone ?? 'utc';
 
   const domainAnalysis = useDomainAnalysis(domain, {
     enabled: Boolean(domain),
     ...settings.defaultAnalysisOptions,
+    private: privateAnalyze,
   });
 
   if (!domain) {
@@ -87,12 +90,26 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
       ? 'RDAP lookup failed for this domain/TLD'
       : undefined);
 
-  const isLoading = domainAnalysis.isLoading;
+  const isLoading = domainAnalysis.isLoading || analyzeMutation.isPending;
   const hasError = !!domainAnalysis.error;
   const lastUpdated = domainAnalysis.dataUpdatedAt || Date.now();
+  const isCached = Boolean(domainAnalysis.data?.meta?.cached);
+  const cachedAt =
+    domainAnalysis.data?.meta?.cachedAt || domainAnalysis.data?.analyzedAt;
 
-  const handleRefresh = () => {
-    clearCacheMutation.mutate(domain);
+  const handleRefresh = async () => {
+    try {
+      await analyzeMutation.mutateAsync({
+        domain,
+        options: {
+          ...settings.defaultAnalysisOptions,
+          private: privateAnalyze,
+          noCache: true,
+        },
+      });
+    } catch {
+      /* mutation toast handles errors */
+    }
   };
 
   const handleExportData = () => {
@@ -155,7 +172,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap">
             <Globe className="h-5 w-5" />
             <h2 className="text-2xl font-bold">{domain}</h2>
             <StatusBadge 
@@ -163,10 +180,33 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               hasError={!!hasError} 
               lastUpdated={lastUpdated}
             />
+            {isCached && !isLoading && !hasError && (
+              <Badge variant="secondary" title={cachedAt ? `As of ${cachedAt}` : undefined}>
+                Cached
+                {cachedAt
+                  ? ` · ${new Date(cachedAt).toLocaleString()}`
+                  : ''}
+              </Badge>
+            )}
+            {privateAnalyze && (
+              <Badge variant="outline">Private</Badge>
+            )}
           </div>
           {settings.showTimestamps && (
             <p className="text-sm text-muted-foreground">
               Last updated: {new Date(lastUpdated).toLocaleString()}
+            </p>
+          )}
+          {domainAnalysis.data?.meta?.sharePath && !privateAnalyze && (
+            <p className="text-sm text-muted-foreground">
+              <a
+                href={domainAnalysis.data.meta.sharePath}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Open shareable report
+              </a>
             </p>
           )}
         </div>
@@ -175,8 +215,8 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
-            disabled={clearCacheMutation.isPending}
+            onClick={() => void handleRefresh()}
+            disabled={analyzeMutation.isPending}
           >
             <Refresh className="h-4 w-4 mr-2" />
             Refresh

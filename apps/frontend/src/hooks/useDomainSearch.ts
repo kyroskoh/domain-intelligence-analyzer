@@ -8,6 +8,7 @@ export interface DomainSearchState {
   searchError?: string;
   focus?: string;
   focusId?: string;
+  privateAnalyze: boolean;
 }
 
 const DOMAIN_REGEX =
@@ -16,10 +17,26 @@ const DOMAIN_REGEX =
 const SEARCH_HISTORY_KEY = 'domain-analyzer-search-history';
 const MAX_HISTORY_ITEMS = 20;
 
+function buildSearchUrl(opts: {
+  domain?: string;
+  focus?: string;
+  focusId?: string;
+  privateAnalyze?: boolean;
+}): string {
+  if (!opts.domain) return '/';
+  const params = new URLSearchParams();
+  params.set('domain', opts.domain);
+  if (opts.focus) params.set('focus', opts.focus);
+  if (opts.focusId) params.set('id', opts.focusId);
+  if (opts.privateAnalyze) params.set('private', '1');
+  return `?${params.toString()}`;
+}
+
 export function useDomainSearch() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const hydrated = useRef(false);
+  const privateRef = useRef(false);
 
   const [state, setState] = useState<DomainSearchState>({
     currentDomain: '',
@@ -28,6 +45,7 @@ export function useDomainSearch() {
     searchError: undefined,
     focus: undefined,
     focusId: undefined,
+    privateAnalyze: false,
   });
 
   useEffect(() => {
@@ -45,13 +63,16 @@ export function useDomainSearch() {
     }
   }, []);
 
-  // Hydrate domain + focus from URL once
+  // Hydrate domain + focus + private from URL once
   useEffect(() => {
     if (hydrated.current) return;
     const domainParam = searchParams?.get('domain') || '';
     const focus = searchParams?.get('focus') || undefined;
     const focusId = searchParams?.get('id') || undefined;
+    const privateAnalyze =
+      searchParams?.get('private') === '1' || searchParams?.get('private') === 'true';
     hydrated.current = true;
+    privateRef.current = privateAnalyze;
     if (domainParam && validateDomain(domainParam)) {
       const trimmed = domainParam.trim().toLowerCase();
       setState((prev) => ({
@@ -61,16 +82,38 @@ export function useDomainSearch() {
         searchError: undefined,
         focus,
         focusId: focusId || undefined,
+        privateAnalyze,
       }));
-    } else if (focus || focusId) {
-      setState((prev) => ({ ...prev, focus, focusId }));
+    } else if (focus || focusId || privateAnalyze) {
+      setState((prev) => ({ ...prev, focus, focusId, privateAnalyze }));
     }
   }, [searchParams]);
 
+  const setPrivateAnalyze = useCallback(
+    (privateAnalyze: boolean) => {
+      privateRef.current = privateAnalyze;
+      setState((prev) => {
+        router.replace(
+          buildSearchUrl({
+            domain: prev.currentDomain || undefined,
+            focus: prev.focus,
+            focusId: prev.focusId,
+            privateAnalyze,
+          }),
+          { scroll: false }
+        );
+        return { ...prev, privateAnalyze };
+      });
+    },
+    [router]
+  );
+
   const setDomain = useCallback(
-    (domain: string, opts?: { focus?: string; id?: string }) => {
+    (domain: string, opts?: { focus?: string; id?: string; privateAnalyze?: boolean }) => {
       const trimmedDomain = domain.trim().toLowerCase();
       const isValid = validateDomain(trimmedDomain);
+      const privateAnalyze = opts?.privateAnalyze ?? privateRef.current;
+      privateRef.current = privateAnalyze;
 
       setState((prev) => ({
         ...prev,
@@ -79,17 +122,18 @@ export function useDomainSearch() {
         searchError: isValid ? undefined : 'Please enter a valid domain name',
         focus: opts?.focus,
         focusId: opts?.id,
+        privateAnalyze,
       }));
 
-      if (trimmedDomain) {
-        const params = new URLSearchParams();
-        params.set('domain', trimmedDomain);
-        if (opts?.focus) params.set('focus', opts.focus);
-        if (opts?.id) params.set('id', opts.id);
-        router.replace(`?${params.toString()}`, { scroll: false });
-      } else {
-        router.replace('/', { scroll: false });
-      }
+      router.replace(
+        buildSearchUrl({
+          domain: trimmedDomain || undefined,
+          focus: opts?.focus,
+          focusId: opts?.id,
+          privateAnalyze: trimmedDomain ? privateAnalyze : false,
+        }),
+        { scroll: false }
+      );
     },
     [router]
   );
@@ -99,11 +143,15 @@ export function useDomainSearch() {
       setState((prev) => {
         const domain = prev.currentDomain;
         if (domain) {
-          const params = new URLSearchParams();
-          params.set('domain', domain);
-          params.set('focus', focus);
-          params.set('id', id);
-          router.replace(`?${params.toString()}`, { scroll: false });
+          router.replace(
+            buildSearchUrl({
+              domain,
+              focus,
+              focusId: id,
+              privateAnalyze: prev.privateAnalyze,
+            }),
+            { scroll: false }
+          );
         }
         return { ...prev, focus, focusId: id };
       });
@@ -178,6 +226,8 @@ export function useDomainSearch() {
     searchError: state.searchError,
     focus: state.focus,
     focusId: state.focusId,
+    privateAnalyze: state.privateAnalyze,
+    setPrivateAnalyze,
     setDomain,
     setFocus,
     searchDomain,

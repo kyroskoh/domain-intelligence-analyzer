@@ -28,7 +28,11 @@ export class ShareStore {
     return isRedisConfigured() && Boolean(getRedisClient()?.isOpen);
   }
 
-  async create(domain: string, snapshotId?: string): Promise<{
+  async create(
+    domain: string,
+    snapshotId?: string,
+    ttlSeconds?: number
+  ): Promise<{
     token: string;
     urlPath: string;
     expiresAt: string;
@@ -54,7 +58,7 @@ export class ShareStore {
     }
 
     const token = newToken();
-    const ttl = shareTtlSeconds();
+    const ttl = ttlSeconds && ttlSeconds > 0 ? ttlSeconds : shareTtlSeconds();
     const createdAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
     const record: ShareRecord = {

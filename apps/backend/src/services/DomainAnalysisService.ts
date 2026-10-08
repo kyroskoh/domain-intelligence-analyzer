@@ -6,6 +6,9 @@ import { RdapService } from './rdap/RdapService';
 import { CacheService } from './cache/CacheService';
 import { snapshotStore } from './cache/SnapshotStore';
 import { entityRelationStore } from './cache/EntityRelationStore';
+import { recentAnalysisStore } from './cache/RecentAnalysisStore';
+import { analyzedAllStore } from './cache/AnalyzedAllStore';
+import { analyzeLock } from './cache/AnalyzeLock';
 import { SecurityAnalysisService } from './security/SecurityAnalysisService';
 import { sslService } from './ssl/SslService';
 import { asnGeoService } from './asn/AsnGeoService';
@@ -43,10 +46,14 @@ export class DomainAnalysisService {
     const requestId = randomUUID();
     const startTime = Date.now();
     const domain = request.domain.toLowerCase();
+    const noCache = Boolean(request.noCache);
+    const announced = !request.private;
     
     logger.info(`Starting domain analysis for ${domain}`, {
       requestId,
       domain,
+      noCache,
+      announced,
       request,
     });
 
@@ -54,6 +61,7 @@ export class DomainAnalysisService {
       requestId,
       duration: 0,
       cached: false,
+      announced,
       errors: [],
       warnings: [],
     };
@@ -64,16 +72,62 @@ export class DomainAnalysisService {
       meta,
     };
 
+    let lockToken: string | null = null;
+
     try {
-      // Check cache first
       const cacheKey = CacheService.generateDomainKey(domain);
-      const cachedResult = await this.cacheService.get<DomainAnalysisResponse>(cacheKey);
-      
-      if (cachedResult) {
-        logger.info(`Returning cached analysis for ${domain}`, { requestId });
-        cachedResult.meta.cached = true;
-        cachedResult.meta.duration = Date.now() - startTime;
-        return cachedResult;
+
+      if (noCache) {
+        const lock = await analyzeLock.tryAcquire(domain);
+        if (!lock.acquired) {
+          await analyzeLock.waitUntilFree(domain);
+          const afterWait = await this.cacheService.get<DomainAnalysisResponse>(cacheKey);
+          if (afterWait) {
+            logger.info(`Returning analysis after noCache wait for ${domain}`, { requestId });
+            afterWait.meta = {
+              ...afterWait.meta,
+              cached: true,
+              cachedAt: afterWait.analyzedAt,
+              duration: Date.now() - startTime,
+              requestId,
+            };
+            return afterWait;
+          }
+          const retry = await analyzeLock.tryAcquire(domain);
+          if (!retry.acquired) {
+            meta.warnings.push('Another fresh analysis is in progress; serving best-effort result');
+            const fallback = await this.cacheService.get<DomainAnalysisResponse>(cacheKey);
+            if (fallback) {
+              fallback.meta = {
+                ...fallback.meta,
+                cached: true,
+                cachedAt: fallback.analyzedAt,
+                duration: Date.now() - startTime,
+                requestId,
+              };
+              return fallback;
+            }
+          } else {
+            lockToken = retry.token;
+          }
+        } else {
+          lockToken = lock.token;
+        }
+
+        await this.clearDomainCache(domain);
+      } else {
+        const cachedResult = await this.cacheService.get<DomainAnalysisResponse>(cacheKey);
+        if (cachedResult) {
+          logger.info(`Returning cached analysis for ${domain}`, { requestId });
+          cachedResult.meta = {
+            ...cachedResult.meta,
+            cached: true,
+            cachedAt: cachedResult.analyzedAt,
+            duration: Date.now() - startTime,
+            requestId,
+          };
+          return cachedResult;
+        }
       }
 
       // Run RDAP, WHOIS, and DNS in parallel so a slow RDAP server does not delay the rest
@@ -225,16 +279,46 @@ export class DomainAnalysisService {
 
       if ((response.whois || response.rdap || response.dns || response.ssl) && !rdapTransientFailure) {
         await this.cacheService.set(cacheKey, response);
+
+        let snapshot = null;
         try {
-          await snapshotStore.save(response);
+          snapshot = await snapshotStore.save(response, { announced });
+          if (snapshot) {
+            meta.snapshotId = snapshot.id;
+          }
         } catch (error) {
           logger.warn(`Snapshot persist failed for ${domain}:`, error);
         }
-        try {
-          await entityRelationStore.indexFromAnalysis(response);
-        } catch (error) {
-          logger.warn(`Relation index failed for ${domain}:`, error);
+
+        let shareToken: string | undefined;
+        if (snapshot && announced) {
+          try {
+            const recent = await recentAnalysisStore.announce(snapshot);
+            if (recent) {
+              meta.sharePath = recent.sharePath;
+              shareToken = recent.shareToken;
+            }
+          } catch (error) {
+            logger.warn(`Recent announce failed for ${domain}:`, error);
+          }
         }
+
+        if (snapshot) {
+          try {
+            await analyzedAllStore.record(snapshot, { shareToken });
+          } catch (error) {
+            logger.warn(`analyzed:all record failed for ${domain}:`, error);
+          }
+        }
+
+        if (announced) {
+          try {
+            await entityRelationStore.indexFromAnalysis(response);
+          } catch (error) {
+            logger.warn(`Relation index failed for ${domain}:`, error);
+          }
+        }
+
         try {
           await webhookDispatcher.notify({
             type: 'analysis.completed',
@@ -243,6 +327,9 @@ export class DomainAnalysisService {
               overallScore: response.security?.overallScore,
               hasSsl: Boolean(response.ssl),
               fingerprint: response.ssl?.fingerprintSha256,
+              announced,
+              snapshotId: meta.snapshotId,
+              sharePath: meta.sharePath,
             },
             at: new Date().toISOString(),
           });
@@ -256,6 +343,8 @@ export class DomainAnalysisService {
         duration: meta.duration,
         errors: meta.errors.length,
         warnings: meta.warnings.length,
+        announced,
+        noCache,
       });
 
       return response;
@@ -271,6 +360,10 @@ export class DomainAnalysisService {
       });
 
       throw error;
+    } finally {
+      if (lockToken) {
+        await analyzeLock.release(domain, lockToken);
+      }
     }
   }
 

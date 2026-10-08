@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DnsData } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { DeepLink } from '@/components/DeepLink';
+import { hrefForNameserver } from '@/lib/entityLinks';
 
 interface DnsPanelProps {
   data?: DnsData;
@@ -144,12 +146,12 @@ export default function DnsPanel({
             "w-2 h-2 rounded-full",
             isHealthy ? "bg-green-500" : "bg-red-500"
           )} />
-          <a
-            href={`/entity/ns/${encodeURIComponent(nameserver.name)}`}
+          <DeepLink
+            href={hrefForNameserver(nameserver.name)}
             className="font-mono text-sm underline-offset-4 hover:underline"
           >
             {nameserver.name}
-          </a>
+          </DeepLink>
         </div>
         <div className="flex items-center space-x-2">
           {responseTime > 0 && (

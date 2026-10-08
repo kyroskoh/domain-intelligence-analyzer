@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@/utils/logger';
 import { DomainAnalysisResponse, SecurityAnalysis } from '@/types/domain';
+import { redactText } from '@/utils/privacy';
 import { connectRedis, getRedisClient } from './redisClient';
 
 export interface AnalysisSnapshot {
@@ -31,7 +32,7 @@ export interface AnalysisSnapshot {
     validTo?: string;
   };
   asnSummary?: { asn: number; asOrg?: string }[];
-  privacy?: { redacted: boolean };
+  privacy?: { redacted: boolean; announced: boolean };
 }
 
 const MAX_SNAPSHOTS_PER_DOMAIN = 100;
@@ -55,7 +56,8 @@ function categoryScore(security: SecurityAnalysis | undefined, needle: string): 
 }
 
 export function buildSnapshotFromAnalysis(
-  response: DomainAnalysisResponse
+  response: DomainAnalysisResponse,
+  options?: { announced?: boolean }
 ): AnalysisSnapshot {
   const security = response.security;
   const overallScore = security?.overallScore ?? 0;
@@ -78,6 +80,11 @@ export function buildSnapshotFromAnalysis(
   for (const ip of response.dns?.ipIntelligence || []) {
     if (ip.asn != null) asnMap.set(ip.asn, ip.asOrg);
   }
+
+  const announced =
+    options?.announced ??
+    response.meta?.announced ??
+    true;
 
   return {
     id: randomUUID(),
@@ -110,11 +117,14 @@ export function buildSnapshotFromAnalysis(
         }
       : undefined,
     nameservers,
-    entities: (response.rdap?.entities || []).slice(0, 8).map((e) => ({
-      handle: e.handle,
-      roles: e.roles,
-      org: e.org || e.fn,
-    })),
+    entities: (response.rdap?.entities || []).slice(0, 8).map((e) => {
+      const orgRaw = e.org || e.fn;
+      return {
+        handle: e.handle,
+        roles: e.roles,
+        org: redactText(orgRaw) || orgRaw,
+      };
+    }),
     ssl: response.ssl
       ? {
           fingerprintSha256: response.ssl.fingerprintSha256,
@@ -126,8 +136,8 @@ export function buildSnapshotFromAnalysis(
       : undefined,
     asnSummary: Array.from(asnMap.entries())
       .slice(0, 8)
-      .map(([asn, asOrg]) => ({ asn, asOrg })),
-    privacy: { redacted: true },
+      .map(([asn, asOrg]) => ({ asn, asOrg: redactText(asOrg) || asOrg })),
+    privacy: { redacted: true, announced },
   };
 }
 
@@ -140,13 +150,16 @@ export function snapshotsIndexKey(domain: string): string {
 }
 
 export class SnapshotStore {
-  async save(response: DomainAnalysisResponse): Promise<AnalysisSnapshot | null> {
+  async save(
+    response: DomainAnalysisResponse,
+    options?: { announced?: boolean }
+  ): Promise<AnalysisSnapshot | null> {
     const client = getRedisClient() ?? (await connectRedis());
     if (!client?.isOpen) {
       return null;
     }
 
-    const snapshot = buildSnapshotFromAnalysis(response);
+    const snapshot = buildSnapshotFromAnalysis(response, options);
     const domain = snapshot.domain;
     const key = snapshotKey(domain, snapshot.id);
     const indexKey = snapshotsIndexKey(domain);

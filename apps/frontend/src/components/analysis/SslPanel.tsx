@@ -1,13 +1,13 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { Shield } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SslCertificateData } from '@/lib/api';
 import { hrefForCert, hrefForSan } from '@/lib/entityLinks';
 import { cn } from '@/lib/utils';
+import { DeepLink } from '@/components/DeepLink';
 
 interface SslPanelProps {
   data?: SslCertificateData | null;
@@ -68,12 +68,12 @@ export default function SslPanel({ data, className, ctSans }: SslPanelProps) {
         <div>
           <span className="text-muted-foreground">Fingerprint</span>
           <div>
-            <Link
+            <DeepLink
               href={hrefForCert(data.fingerprintSha256)}
               className={cn('font-mono text-xs break-all underline-offset-4 hover:underline')}
             >
               {data.fingerprintSha256}
-            </Link>
+            </DeepLink>
           </div>
         </div>
         <div>
@@ -81,12 +81,12 @@ export default function SslPanel({ data, className, ctSans }: SslPanelProps) {
           <ul className="space-y-1 max-h-48 overflow-y-auto">
             {data.sans.map((san) => (
               <li key={san}>
-                <Link
+                <DeepLink
                   href={hrefForSan(san)}
                   className="font-mono text-xs underline-offset-4 hover:underline"
                 >
                   {san}
-                </Link>
+                </DeepLink>
               </li>
             ))}
           </ul>
@@ -102,12 +102,12 @@ export default function SslPanel({ data, className, ctSans }: SslPanelProps) {
             <ul className="space-y-1 max-h-32 overflow-y-auto">
               {ctSans.slice(0, 30).map((san) => (
                 <li key={san}>
-                  <Link
+                  <DeepLink
                     href={hrefForSan(san)}
                     className="font-mono text-xs underline-offset-4 hover:underline"
                   >
                     {san}
-                  </Link>
+                  </DeepLink>
                 </li>
               ))}
             </ul>

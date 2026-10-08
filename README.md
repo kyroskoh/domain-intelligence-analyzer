@@ -2,7 +2,7 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, TLS certificate probing, ASN/BGP intelligence, entity deep links, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
-**Version:** 1.1.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+**Version:** 1.2.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
 
 ## 🚀 Features
 
@@ -37,7 +37,12 @@ A production-grade web application that provides comprehensive domain analysis i
 ### Export & Sharing
 - **Multiple Export Formats**: JSON, CSV, and PDF reports — CSV/PDF include RDAP (entities, events, DNSSEC, links) with the same DD/MMM/YYYY date formatting as the UI
 - **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards
+- **Cached results**: Redis/memory hits return `meta.cached` (+ `meta.cachedAt`); UI shows a Cached badge; **Refresh** uses `?noCache=1` (stampede-locked) for a live re-run
+- **Private analyze**: Opt out of the public feed with `?private=1` / UI checkbox — still snapshottable and shareable via deliberate share links
+- **Recent feed**: `/recent` and `GET /api/recent` list the last 50 unique **announced** domains with shareable snapshot links
 - **Share Links**: Server-backed temporary shareable analysis snapshots (`/share/[token]`) plus `?domain=` deep links
+- **Deep links stay put**: Entity / NS / registrar / cert / SAN / ASN links open in a **new browser tab** so the current analysis dashboard is preserved
+- **Ops list (internal)**: `npm run list:analyzed` (or `docker compose exec backend npm run list:analyzed`) lists all analyses including private + cache status — not a public API
 - **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production); site vs script rate budgets
 - **Webhook Integration**: Outbound webhooks + entity watchlists (`/api/monitoring/watch`)
 
@@ -289,13 +294,29 @@ Visit `http://localhost:4000/test-charts` to test all visualization components w
 # Analyze a domain (also persists a Redis snapshot when Redis is up)
 curl -X GET "http://localhost:4001/api/analyze/example.com"
 
-# Snapshot history / temporary share link
+# Force a live re-run (bypass cache)
+curl -X GET "http://localhost:4001/api/analyze/example.com?noCache=1"
+
+# Private analyze (omit from public recent feed)
+curl -X GET "http://localhost:4001/api/analyze/example.com?private=1"
+
+# Announced recent feed (unique domains, max 50)
+curl -X GET "http://localhost:4001/api/recent"
+
+# Snapshot history (announced only) / temporary share link
 curl -X GET "http://localhost:4001/api/history/example.com"
 curl -X POST "http://localhost:4001/api/share" -H "Content-Type: application/json" -d "{\"domain\":\"example.com\"}"
 
 # Get DNS records only
 curl -X GET "http://localhost:4001/api/dns/example.com"
+
+# Ops: list all analyzed domains (incl. private) — host/Docker only
+npm run list:analyzed
+npm run list:analyzed -- --json --limit=50
+# docker compose exec backend npm run list:analyzed
 ```
+
+Optional loopback HTTP (off by default): set `INTERNAL_ANALYZED_LIST=1` and call `GET /api/internal/analyzed` from localhost (add `ALLOW_DOCKER_INTERNAL_LIST=1` for Docker bridge). Requests with `X-Forwarded-For` are rejected.
 
 ### API Documentation
 Visit `http://localhost:4001/docs` for interactive Swagger documentation.

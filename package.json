@@ -1,6 +1,6 @@
 {
   "name": "domainpeek",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Production-grade DomainPeek with WHOIS/RDAP/DNS analysis, interactive D3.js visualizations, and comprehensive security scoring",
   "keywords": [
     "domain",
@@ -48,7 +48,8 @@
     "docker:build:nocache": "DOCKER_BUILD_NO_CACHE=true docker compose build",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "generate:api-key": "node scripts/generate-api-key.mjs"
+    "generate:api-key": "node scripts/generate-api-key.mjs",
+    "list:analyzed": "npm --workspace=apps/backend run list:analyzed"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

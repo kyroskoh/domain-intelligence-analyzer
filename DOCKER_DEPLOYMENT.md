@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This document provides comprehensive instructions for deploying DomainPeek **1.1.0** using Docker and Docker Compose (nginx, Redis, and optional Memgraph for entity relations).
+This document provides comprehensive instructions for deploying DomainPeek **1.2.0** using Docker and Docker Compose (nginx, Redis, and optional Memgraph for entity relations).
 
 ## Prerequisites
 
@@ -570,7 +570,9 @@ docker system prune -af
 
 Redis is opt-in via `-p redis` or `-p default` (`REDIS_URL=redis://redis:6379`). `./deploy.sh` autofills `REDIS_*`, `SNAPSHOT_TTL_SECONDS`, and `SHARE_TTL_SECONDS` when missing. Optional password: set `REDIS_PASSWORD` (backend merges into the URL) or use `REDIS_URL=redis://:password@redis:6379`.
 
-API extras backed by Redis: `GET /api/history/:domain`, `POST /api/share`, `GET /api/share/:token`, Express rate-limit store, and `/health` Redis ping. Without the Redis profile the API still runs (memory cache / empty history).
+API extras backed by Redis: `GET /api/history/:domain`, `GET /api/recent`, `POST /api/share`, `GET /api/share/:token`, Express rate-limit store, and `/health` Redis ping. Without the Redis profile the API still runs (memory cache / empty history / empty recent feed).
+
+Ops (host or container only — not a public UI): list all analyses including private and cache status with `npm run list:analyzed` or `docker compose exec backend npm run list:analyzed`. Optional loopback HTTP: `INTERNAL_ANALYZED_LIST=1` → `GET /api/internal/analyzed`.
 
 1. Add custom redis.conf
 2. Mount in docker-compose.yml:

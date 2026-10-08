@@ -27,13 +27,18 @@ export function useDomainAnalysis(domain: string, options?: {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  private?: boolean;
   enabled?: boolean;
 }) {
-  const { enabled = true, ...analysisOptions } = options || {};
+  const { enabled = true, private: isPrivate = false, ...analysisOptions } = options || {};
   
   return useQuery({
-    queryKey: [...queryKeys.domainAnalysis(domain), analysisOptions],
-    queryFn: () => apiClient.analyzeDomain(domain, analysisOptions),
+    queryKey: [...queryKeys.domainAnalysis(domain), { private: Boolean(isPrivate) }],
+    queryFn: () =>
+      apiClient.analyzeDomain(domain, {
+        ...analysisOptions,
+        private: Boolean(isPrivate),
+      }),
     enabled: enabled && Boolean(domain),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,

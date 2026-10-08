@@ -80,5 +80,43 @@ describe('SnapshotStore helpers', () => {
     expect(snapshot.hasDns).toBe(true);
     expect(snapshot.events).toContain('Missing CAA');
     expect(snapshot.id).toBeTruthy();
+    expect(snapshot.privacy).toEqual({ redacted: true, announced: true });
+  });
+
+  it('respects private/announced option and redacts emails in entity org', () => {
+    const response: DomainAnalysisResponse = {
+      domain: 'private.example',
+      analyzedAt: '2026-01-15T12:00:00.000Z',
+      meta: {
+        requestId: 'req-2',
+        duration: 10,
+        cached: false,
+        announced: false,
+        errors: [],
+        warnings: [],
+      },
+      rdap: {
+        domain: 'private.example',
+        status: [],
+        events: [],
+        entities: [
+          {
+            handle: 'H1',
+            roles: ['registrant'],
+            org: 'Acme Corp contact@acme.example',
+            fn: 'Jane Doe',
+          },
+        ],
+        nameservers: [],
+        raw: {},
+      },
+    };
+
+    const snapshot = buildSnapshotFromAnalysis(response, { announced: false });
+    expect(snapshot.privacy?.announced).toBe(false);
+    expect(snapshot.privacy?.redacted).toBe(true);
+    expect(snapshot.entities?.[0]?.org).toContain('[redacted]');
+    expect(snapshot.entities?.[0]?.org).not.toContain('contact@acme.example');
   });
 });
+

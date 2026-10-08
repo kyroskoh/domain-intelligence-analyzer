@@ -117,6 +117,11 @@ function HomeInner() {
               className="mx-auto"
               autoFocus
             />
+            <p className="text-sm text-muted-foreground">
+              <Link href="/recent" className="underline hover:text-foreground">
+                View recently analyzed domains
+              </Link>
+            </p>
           </section>
 
           {!displayDomain && (

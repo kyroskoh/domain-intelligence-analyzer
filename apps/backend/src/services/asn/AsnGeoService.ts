@@ -140,7 +140,7 @@ export class AsnGeoService {
         const { data: html } = await axios.get<string>(heUrl, {
           timeout: 10000,
           headers: {
-            'User-Agent': 'DomainPeek/1.1.0 (+https://domainpeek.xyz; research)',
+            'User-Agent': 'DomainPeek/1.2.0 (+https://domainpeek.xyz; research)',
             Accept: 'text/html',
           },
           responseType: 'text',

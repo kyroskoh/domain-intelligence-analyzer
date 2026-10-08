@@ -11,10 +11,15 @@ const analysisService = new DomainAnalysisService();
 const DOMAIN_REGEX =
   /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
 
+function truthyQuery(value: unknown): boolean {
+  return value === '1' || value === 'true' || value === true;
+}
+
 router.use(expensiveSiteVsScriptRateLimit);
 
 /**
  * POST /api/analyze/bulk — capped multi-domain analyze (scripts need API key / tight limit).
+ * Bulk stays non-announcing by default to avoid flooding the public recent feed.
  */
 router.post('/bulk', async (req: Request, res: Response) => {
   const domains = Array.isArray(req.body?.domains) ? req.body.domains : [];
@@ -30,12 +35,15 @@ router.post('/bulk', async (req: Request, res: Response) => {
   }
 
   const includeCt = Boolean(req.body?.includeCt);
+  const noCache = Boolean(req.body?.noCache);
   const results = [];
   for (const domain of list) {
     try {
       const response = await analysisService.analyzeDomain({
         domain,
         includeCt,
+        noCache,
+        private: true,
       });
       results.push({ domain, ok: true, overallScore: response.security?.overallScore });
     } catch (error) {
@@ -55,11 +63,18 @@ router.get('/:domain', validateDomain, async (req: Request, res: Response) => {
   const include = req.query.include as string;
   const includeCt =
     req.query.includeCt === '1' || req.query.includeCt === 'true';
+  const noCache = truthyQuery(req.query.noCache);
+  const privateRun =
+    truthyQuery(req.query.private) ||
+    req.query.announce === '0' ||
+    req.query.announce === 'false';
 
   logger.info(`Analyzing domain: ${domain}`, {
     domain,
     include: include || 'all',
     includeCt,
+    noCache,
+    private: privateRun,
     ip: req.ip,
   });
 
@@ -79,6 +94,8 @@ router.get('/:domain', validateDomain, async (req: Request, res: Response) => {
       includeGeo: includeAll || includeSet.has('geo'),
       includeDkim: includeAll || includeSet.has('dkim'),
       includeCt,
+      noCache,
+      private: privateRun,
     };
 
     const response = await analysisService.analyzeDomain(request);

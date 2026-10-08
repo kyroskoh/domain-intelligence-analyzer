@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { Network, Building, User, Mail, Phone, Calendar, ExternalLink, Shield, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { RdapData, RdapEntity } from '@/lib/api';
 import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 import { hrefForEntity, hrefForNameserver } from '@/lib/entityLinks';
+import { DeepLink } from '@/components/DeepLink';
 
 interface RdapPanelProps {
   data?: RdapData;
@@ -102,20 +102,12 @@ export default function RdapPanel({
             {entity.roles?.includes('registrant') && <User className="h-4 w-4" />}
             {entity.roles?.includes('registrar') && <Building className="h-4 w-4" />}
             {link ? (
-              link.external ? (
-                <a
-                  href={link.href}
-                  target={link.href.startsWith('mailto:') ? undefined : '_blank'}
-                  rel="noopener noreferrer"
-                  className="font-medium underline-offset-4 hover:underline"
-                >
-                  {name}
-                </a>
-              ) : (
-                <Link href={link.href} className="font-medium underline-offset-4 hover:underline">
-                  {name}
-                </Link>
-              )
+              <DeepLink
+                href={link.href}
+                className="font-medium underline-offset-4 hover:underline"
+              >
+                {name}
+              </DeepLink>
             ) : (
               <span className="font-medium">{name}</span>
             )}
@@ -268,12 +260,12 @@ export default function RdapPanel({
                   if (!host) return null;
                   return (
                     <div key={index} className="font-mono">
-                      <Link
+                      <DeepLink
                         href={hrefForNameserver(host)}
                         className="underline-offset-4 hover:underline"
                       >
                         {host}
-                      </Link>
+                      </DeepLink>
                     </div>
                   );
                 })}

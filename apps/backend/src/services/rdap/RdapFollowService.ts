@@ -90,7 +90,7 @@ export class RdapFollowService {
           timeout: parseInt(process.env.RDAP_TIMEOUT_MS || '15000', 10),
           headers: {
             Accept: 'application/rdap+json, application/json',
-            'User-Agent': 'DomainPeek/1.1.0 (+https://domainpeek.xyz)',
+            'User-Agent': 'DomainPeek/1.2.0 (+https://domainpeek.xyz)',
           },
         });
         return res.data;

@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import Link from 'next/link';
 import { Database, Calendar, User, Building, Globe, Clock, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,6 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { WhoisData, RdapData, ContactInfo } from '@/lib/api';
 import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 import { hrefForNameserver, hrefForRegistrar } from '@/lib/entityLinks';
+import { DeepLink } from '@/components/DeepLink';
 
 interface WhoisPanelProps {
   data?: WhoisData;
@@ -295,31 +295,25 @@ export default function WhoisPanel({
                         url: data.registrar.url,
                         ianaId: (data.registrar as { ianaId?: string }).ianaId,
                       });
-                      return link.external ? (
-                        <a
+                      return (
+                        <DeepLink
                           href={link.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
                           className="underline-offset-4 hover:underline"
                         >
                           {data.registrar.name}
-                        </a>
-                      ) : (
-                        <Link href={link.href} className="underline-offset-4 hover:underline">
-                          {data.registrar.name}
-                        </Link>
+                        </DeepLink>
                       );
                     })()
                   ) : label === 'Name Servers' && data.nameservers?.length ? (
                     <ul className="space-y-0.5">
                       {data.nameservers.map((ns) => (
                         <li key={ns}>
-                          <Link
+                          <DeepLink
                             href={hrefForNameserver(ns)}
                             className="font-mono text-xs underline-offset-4 hover:underline"
                           >
                             {ns}
-                          </Link>
+                          </DeepLink>
                         </li>
                       ))}
                     </ul>

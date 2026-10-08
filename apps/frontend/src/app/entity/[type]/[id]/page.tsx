@@ -9,6 +9,7 @@ import { buildAnalyzeHref } from '@/lib/entityLinks';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { DeepLink } from '@/components/DeepLink';
 
 export default function EntityPage() {
   const params = useParams<{ type: string; id: string }>();
@@ -94,12 +95,12 @@ export default function EntityPage() {
             <ul className="space-y-2">
               {domains.map((d) => (
                 <li key={d}>
-                  <Link
+                  <DeepLink
                     href={buildAnalyzeHref(d)}
                     className="font-mono underline-offset-4 hover:underline"
                   >
                     {d}
-                  </Link>
+                  </DeepLink>
                 </li>
               ))}
             </ul>

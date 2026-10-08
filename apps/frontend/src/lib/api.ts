@@ -15,6 +15,8 @@ export interface DomainAnalysisOptions {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  noCache?: boolean;
+  private?: boolean;
 }
 
 export interface SslCertificateData {
@@ -52,6 +54,10 @@ export interface AnalysisMeta {
   requestId: string;
   duration: number;
   cached: boolean;
+  cachedAt?: string;
+  announced?: boolean;
+  snapshotId?: string;
+  sharePath?: string;
   errors: string[];
   warnings: string[];
 }
@@ -501,12 +507,10 @@ class ApiClient {
   }
 
   // Domain analysis
-  async analyzeDomain(domain: string, options?: {
-    includeWhois?: boolean;
-    includeRdap?: boolean;
-    includeDns?: boolean;
-    includeSecurityAnalysis?: boolean;
-  }): Promise<DomainAnalysisResponse> {
+  async analyzeDomain(
+    domain: string,
+    options?: DomainAnalysisOptions
+  ): Promise<DomainAnalysisResponse> {
     const params = new URLSearchParams();
     
     if (options) {
@@ -519,6 +523,8 @@ class ApiClient {
       if (include.length > 0) {
         params.append('include', include.join(','));
       }
+      if (options.noCache) params.append('noCache', '1');
+      if (options.private) params.append('private', '1');
     }
 
     const queryString = params.toString();
@@ -526,6 +532,22 @@ class ApiClient {
     
     const response = await this.client.get<DomainAnalysisResponse>(url);
     return transformDomainAnalysisResponse(response.data);
+  }
+
+  async getRecentAnalyses(limit = 50): Promise<{
+    count: number;
+    entries: Array<{
+      domain: string;
+      snapshotId: string;
+      analyzedAt: string;
+      overallScore: number;
+      riskLevel: string;
+      shareToken: string;
+      sharePath: string;
+    }>;
+  }> {
+    const response = await this.client.get('/api/recent', { params: { limit } });
+    return response.data;
   }
 
   // Individual service methods

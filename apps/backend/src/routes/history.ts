@@ -4,11 +4,15 @@ import { snapshotStore } from '@/services/cache/SnapshotStore';
 
 const router = Router();
 
+function isAnnounced(snapshot: { privacy?: { announced?: boolean } }): boolean {
+  return snapshot.privacy?.announced !== false;
+}
+
 /**
  * @swagger
  * /api/history/{domain}:
  *   get:
- *     summary: List analysis snapshots for a domain
+ *     summary: List announced analysis snapshots for a domain
  *     tags: [History]
  *     parameters:
  *       - in: path
@@ -23,7 +27,7 @@ const router = Router();
  *           default: 50
  *     responses:
  *       200:
- *         description: Snapshot list (newest first); empty when Redis unavailable
+ *         description: Snapshot list (newest first, announced only); empty when Redis unavailable
  */
 router.get('/:domain', async (req: Request, res: Response) => {
   const domain = String(req.params.domain || '').toLowerCase().trim();
@@ -39,7 +43,14 @@ router.get('/:domain', async (req: Request, res: Response) => {
   }
 
   try {
-    const snapshots = await snapshotStore.list(domain, Number.isFinite(limit) ? limit : 50);
+    const fetchLimit = Math.min(
+      Math.max(Number.isFinite(limit) ? limit : 50, 1) * 3,
+      100
+    );
+    const all = await snapshotStore.list(domain, fetchLimit);
+    const snapshots = all
+      .filter(isAnnounced)
+      .slice(0, Number.isFinite(limit) ? limit : 50);
     res.json({
       domain,
       count: snapshots.length,
@@ -55,7 +66,7 @@ router.get('/:domain', async (req: Request, res: Response) => {
  * @swagger
  * /api/history/{domain}/{id}:
  *   get:
- *     summary: Get a single analysis snapshot
+ *     summary: Get a single announced analysis snapshot
  *     tags: [History]
  */
 router.get('/:domain/:id', async (req: Request, res: Response) => {
@@ -72,7 +83,7 @@ router.get('/:domain/:id', async (req: Request, res: Response) => {
   }
 
   const snapshot = await snapshotStore.get(domain, id);
-  if (!snapshot) {
+  if (!snapshot || !isAnnounced(snapshot)) {
     res.status(404).json({
       error: 'Snapshot not found',
       code: 'SNAPSHOT_NOT_FOUND',

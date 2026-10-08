@@ -10,6 +10,10 @@ export interface DomainAnalysisRequest {
   includeGeo?: boolean;
   includeCt?: boolean;
   includeDkim?: boolean;
+  /** Bypass Redis/memory full+sub caches and run live lookups */
+  noCache?: boolean;
+  /** When true, omit from public recent feed (still snapshot + ops index) */
+  private?: boolean;
 }
 
 export interface DomainAnalysisResponse {
@@ -30,8 +34,14 @@ export interface AnalysisMeta {
   requestId: string;
   duration: number; // milliseconds
   cached: boolean;
+  /** Original analyzedAt when serving a cache hit */
+  cachedAt?: string;
   errors: string[];
   warnings: string[];
+  /** Whether this run was (or will be) listed on the public recent feed */
+  announced?: boolean;
+  snapshotId?: string;
+  sharePath?: string;
 }
 
 // WHOIS Data Structure

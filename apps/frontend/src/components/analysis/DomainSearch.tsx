@@ -43,6 +43,8 @@ export default function DomainSearch({
     setDomain,
     removeFromHistory,
     clearHistory,
+    privateAnalyze,
+    setPrivateAnalyze,
   } = useDomainSearch();
 
   const analyzeDomainMutation = useAnalyzeDomain();
@@ -57,7 +59,7 @@ export default function DomainSearch({
     setInputValue(domain);
   }, [domain]);
 
-  const runAnalyze = async (target: string) => {
+  const runAnalyze = async (target: string, isPrivate = privateAnalyze) => {
     setIsSubmitting(true);
     try {
       await analyzeDomainMutation.mutateAsync({
@@ -67,6 +69,7 @@ export default function DomainSearch({
           includeRdap: true,
           includeDns: true,
           includeSecurityAnalysis: true,
+          private: isPrivate,
         },
       });
       onDomainAnalyzed?.(target);
@@ -81,11 +84,12 @@ export default function DomainSearch({
   // Auto-analyze when domain is hydrated from ?domain=
   useEffect(() => {
     if (!domain || !isValidDomain) return;
-    if (autoAnalyzedRef.current === domain) return;
-    autoAnalyzedRef.current = domain;
-    void runAnalyze(domain);
+    const key = `${domain}|${privateAnalyze ? '1' : '0'}`;
+    if (autoAnalyzedRef.current === key) return;
+    autoAnalyzedRef.current = key;
+    void runAnalyze(domain, privateAnalyze);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domain, isValidDomain]);
+  }, [domain, isValidDomain, privateAnalyze]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,6 +215,17 @@ export default function DomainSearch({
             </Button>
           </div>
         </div>
+
+        <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-input"
+            checked={privateAnalyze}
+            onChange={(e) => setPrivateAnalyze(e.target.checked)}
+            disabled={isLoading}
+          />
+          <span>Private — don’t list on Recent</span>
+        </label>
 
         {/* Validation feedback */}
         {searchError && (

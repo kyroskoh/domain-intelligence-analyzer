@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { DeepLink } from '@/components/DeepLink';
 
 export default function SharePage() {
   const params = useParams<{ token: string }>();
@@ -160,24 +161,24 @@ export default function SharePage() {
                   {snapshot.registrar && (
                     <div>
                       Registrar:{' '}
-                      <Link
+                      <DeepLink
                         href={`/entity/registrar/${encodeURIComponent(snapshot.registrar.ianaId || snapshot.registrar.name)}`}
                         className="underline-offset-4 hover:underline"
                       >
                         {snapshot.registrar.name}
-                      </Link>
+                      </DeepLink>
                     </div>
                   )}
                   {snapshot.nameservers && snapshot.nameservers.length > 0 && (
                     <ul className="space-y-1">
                       {snapshot.nameservers.map((ns) => (
                         <li key={ns}>
-                          <Link
+                          <DeepLink
                             href={`/entity/ns/${encodeURIComponent(ns)}`}
                             className="font-mono text-xs underline-offset-4 hover:underline"
                           >
                             {ns}
-                          </Link>
+                          </DeepLink>
                         </li>
                       ))}
                     </ul>
@@ -185,23 +186,23 @@ export default function SharePage() {
                   {snapshot.ssl && (
                     <div>
                       Cert:{' '}
-                      <Link
+                      <DeepLink
                         href={`/entity/cert/${encodeURIComponent(snapshot.ssl.fingerprintSha256)}`}
                         className="font-mono text-xs underline-offset-4 hover:underline"
                       >
                         {snapshot.ssl.fingerprintSha256.slice(0, 16)}…
-                      </Link>
+                      </DeepLink>
                       {snapshot.ssl.isCloudflareOriginCa ? ' · Origin CA' : ''}
                     </div>
                   )}
                   {snapshot.asnSummary?.map((a) => (
                     <div key={a.asn}>
-                      <Link
+                      <DeepLink
                         href={`/entity/asn/${a.asn}`}
                         className="underline-offset-4 hover:underline"
                       >
                         AS{a.asn}
-                      </Link>
+                      </DeepLink>
                       {a.asOrg ? ` · ${a.asOrg}` : ''}
                     </div>
                   ))}
@@ -209,9 +210,13 @@ export default function SharePage() {
               )}
 
               <Button asChild className="w-full">
-                <Link href={`/?domain=${encodeURIComponent(snapshot.domain)}`}>
+                <a
+                  href={`/?domain=${encodeURIComponent(snapshot.domain)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   Analyze {snapshot.domain} again
-                </Link>
+                </a>
               </Button>
             </CardContent>
           </Card>

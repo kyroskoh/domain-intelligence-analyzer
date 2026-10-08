@@ -31,6 +31,8 @@ import rdapRoutes from '@/routes/rdap';
 import healthRoutes from '@/routes/health';
 import historyRoutes from '@/routes/history';
 import shareRoutes from '@/routes/share';
+import recentRoutes from '@/routes/recent';
+import internalRoutes from '@/routes/internal';
 import sslRoutes from '@/routes/ssl';
 import relationsRoutes from '@/routes/relations';
 import clientEnvRoutes from '@/routes/clientEnv';
@@ -51,7 +53,7 @@ const swaggerOptions = {
     openapi: '3.0.0',
     info: {
       title: 'DomainPeek API',
-      version: '1.1.0',
+      version: '1.2.0',
       description: 'Comprehensive domain analysis API providing WHOIS, RDAP, DNS, and security insights',
     },
     servers: [
@@ -132,6 +134,8 @@ function setupMiddleware(): void {
   app.use('/api/rdap', rdapRoutes);
   app.use('/api/history', historyRoutes);
   app.use('/api/share', shareRoutes);
+  app.use('/api/recent', recentRoutes);
+  app.use('/api/internal', internalRoutes);
   app.use('/api/ssl', sslRoutes);
   app.use('/api/relations', relationsRoutes);
   app.use('/api/client-env', clientEnvRoutes);
@@ -151,11 +155,12 @@ function setupMiddleware(): void {
   app.get('/', (req, res) => {
     res.json({
       message: 'DomainPeek API',
-      version: '1.1.0',
+      version: '1.2.0',
       docs: '/docs',
       health: '/health',
       history: '/api/history/:domain',
       share: '/api/share',
+      recent: '/api/recent',
       ssl: '/api/ssl/:domain',
       relations: '/api/relations/:kind/:id',
       entity: '/api/entity/:type/:id',

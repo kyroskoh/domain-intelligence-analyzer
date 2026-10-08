@@ -394,6 +394,8 @@ export function NetworkTopologyDiagram({
                     <p>
                       <a
                         href={`/entity/ns/${encodeURIComponent(selectedNode.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="underline-offset-4 hover:underline text-primary"
                       >
                         Related domains / deep link
@@ -401,6 +403,8 @@ export function NetworkTopologyDiagram({
                       {' · '}
                       <a
                         href={`/?domain=${encodeURIComponent(selectedNode.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="underline-offset-4 hover:underline text-primary"
                       >
                         Analyze nameserver
@@ -430,6 +434,8 @@ export function NetworkTopologyDiagram({
                     <p>
                       <a
                         href={`/entity/registrar/${encodeURIComponent(selectedNode.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="underline-offset-4 hover:underline text-primary"
                       >
                         Related domains
