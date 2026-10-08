@@ -2,7 +2,7 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, TLS certificate probing, ASN/BGP intelligence, entity deep links, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
-**Version:** 1.3.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+**Version:** 1.3.1 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz) · **Changelog:** [CHANGELOG.md](./CHANGELOG.md)
 
 ## 🚀 Features
 
@@ -35,8 +35,8 @@ A production-grade web application that provides comprehensive domain analysis i
 - **Live DNS Monitoring**: After analyze, the UI subscribes over Socket.IO for real DNS change / TTL alerts (nginx proxies `/socket.io/` in production)
 
 ### Export & Sharing
-- **Multiple Export Formats**: JSON, CSV, and PDF reports — CSV/PDF include RDAP (entities, events, DNSSEC, links) with the same DD/MMM/YYYY date formatting as the UI
-- **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards
+- **Multiple Export Formats**: JSON, CSV, and PDF reports — CSV/PDF include RDAP (entities, events, DNSSEC, links) and TLS certificate fields when present, with the same DD/MMM/YYYY date formatting as the UI
+- **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call with `include` covering whois, rdap, dns, security, **ssl**, **geo**, and **dkim** (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards (including TLS probe failures)
 - **Cached results**: Redis/memory hits return `meta.cached` (+ `meta.cachedAt`); UI shows a Cached badge; **Refresh** uses `?noCache=1` (stampede-locked) for a live re-run
 - **Private analyze**: Opt out of the public feed with `?private=1` / UI checkbox — still snapshottable and shareable via deliberate share links
 - **Recent feed**: Home page expandable “View recently analyzed domains” preview (opens a domain in a new tab; **See more** → `/recent`); `/recent` and `GET /api/recent` list the last 50 unique **announced** domains with shareable snapshot links
@@ -670,6 +670,7 @@ Progress tracker for entity deep links, TLS/SAN, ASN/BGP, Memgraph relations, an
 
 #### TLS, DNS, ASN
 - [x] SSL/TLS certificate probe + SAN extraction; real SSL security scoring; `GET /api/ssl/:domain`
+- [x] UI analyze `include` requests ssl/geo/dkim so dashboard TLS / ASN / DKIM match backend defaults
 - [x] Shared-SAN index; Cloudflare Origin CA heuristics; opt-in throttled CT (crt.sh)
 - [x] AsnGeoService: ip-api.com + bgp.he.net IPv4/IPv6 prefix checks (Redis-cached, gated)
 - [x] Real DNSSEC validation + SRV lookup in DNS service

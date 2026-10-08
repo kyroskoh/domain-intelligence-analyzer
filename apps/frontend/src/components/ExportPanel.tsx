@@ -56,6 +56,8 @@ export function ExportPanel({
     whois: analysisData.whois,
     rdap: analysisData.rdap,
     dns: analysisData.dns,
+    ssl: analysisData.ssl,
+    ct: analysisData.ct,
     security: analysisData.security,
     dateTimezone,
   };
@@ -160,6 +162,7 @@ export function ExportPanel({
     if (analysisData.whois) items++;
     if (analysisData.rdap) items++;
     if (analysisData.dns?.records) items++;
+    if (analysisData.ssl) items++;
     if (analysisData.security) items++;
     return `${items} data categories`;
   };

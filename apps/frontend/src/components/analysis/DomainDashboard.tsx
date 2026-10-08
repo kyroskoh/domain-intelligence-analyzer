@@ -99,6 +99,7 @@ export default function DomainDashboard({
   const whoisWarnings = filterWarnings(metaWarnings, 'whois');
   const rdapWarnings = filterWarnings(metaWarnings, 'rdap');
   const dnsWarnings = filterWarnings(metaWarnings, 'dns');
+  const sslWarnings = filterWarnings(metaWarnings, 'tls', 'ssl', 'certificate');
   const rdapWarning =
     rdapWarnings[0] ||
     (!resolvedRdap && analysisData
@@ -140,6 +141,8 @@ export default function DomainDashboard({
         whois: resolvedWhois,
         rdap: resolvedRdap,
         dns: resolvedDns,
+        ssl: analysisData?.ssl,
+        ct: analysisData?.ct,
         security: analysisData?.security,
         dateTimezone,
       };
@@ -374,6 +377,7 @@ export default function DomainDashboard({
             <SslPanel
               data={analysisData?.ssl}
               ctSans={analysisData?.ct?.ctSans}
+              warnings={sslWarnings}
             />
           </div>
         </TabsContent>
@@ -414,6 +418,7 @@ export default function DomainDashboard({
               <SslPanel
                 data={analysisData?.ssl}
                 ctSans={analysisData?.ct?.ctSans}
+                warnings={sslWarnings}
               />
             </div>
             <div id="security-section">
@@ -455,6 +460,8 @@ export default function DomainDashboard({
                 whois: resolvedWhois,
                 rdap: resolvedRdap,
                 dns: resolvedDns,
+                ssl: analysisData?.ssl,
+                ct: analysisData?.ct,
                 security: analysisData?.security
               }}
             />

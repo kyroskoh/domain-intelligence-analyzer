@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import Papa from 'papaparse';
-import { SecurityAnalysis } from './api';
+import { SecurityAnalysis, SslCertificateData } from './api';
 import { DateDisplayTimezone, formatDisplayDate } from './utils';
 
 export type ExportFormat = 'json' | 'csv' | 'pdf';
@@ -11,6 +11,8 @@ export interface ExportData {
   whois?: any;
   rdap?: any;
   dns?: any;
+  ssl?: SslCertificateData;
+  ct?: { ctSans: string[]; historical?: boolean };
   security?: SecurityAnalysis;
   dateTimezone?: DateDisplayTimezone;
 }
@@ -368,8 +370,8 @@ export function exportToPDF(data: ExportData): void {
     addSection('DNS Information', dnsInfo);
   }
 
-  if ((data as any).ssl) {
-    const ssl = (data as any).ssl;
+  if (data.ssl) {
+    const ssl = data.ssl;
     addSection('TLS Certificate', {
       Issuer: ssl.issuer,
       Fingerprint: ssl.fingerprintSha256,

@@ -27,6 +27,9 @@ export function useDomainAnalysis(domain: string, options?: {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  includeSsl?: boolean;
+  includeGeo?: boolean;
+  includeDkim?: boolean;
   private?: boolean;
   enabled?: boolean;
 }) {

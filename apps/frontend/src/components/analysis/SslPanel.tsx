@@ -13,10 +13,13 @@ interface SslPanelProps {
   data?: SslCertificateData | null;
   className?: string;
   ctSans?: string[];
+  /** TLS-related analysis warnings when probe failed or returned nothing */
+  warnings?: string[];
 }
 
-export default function SslPanel({ data, className, ctSans }: SslPanelProps) {
+export default function SslPanel({ data, className, ctSans, warnings }: SslPanelProps) {
   if (!data) {
+    const warningText = warnings?.filter(Boolean).join(' · ');
     return (
       <Card className={className}>
         <CardHeader>
@@ -24,7 +27,9 @@ export default function SslPanel({ data, className, ctSans }: SslPanelProps) {
             <Shield className="h-5 w-5" />
             TLS Certificate
           </CardTitle>
-          <CardDescription>No certificate data from this analysis</CardDescription>
+          <CardDescription>
+            {warningText || 'No certificate data from this analysis'}
+          </CardDescription>
         </CardHeader>
       </Card>
     );

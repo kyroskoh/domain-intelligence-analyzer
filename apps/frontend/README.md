@@ -1,8 +1,8 @@
 # DomainPeek Frontend
 
-Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS/TLS panels (single `/api/analyze` fetch), entity deep links (`/entity/...`), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
+Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS/TLS panels (single `/api/analyze` fetch with ssl/geo/dkim included), entity deep links (`/entity/...`), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
 
-**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+**Version:** 1.3.1 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz) · **Changelog:** [CHANGELOG.md](../../CHANGELOG.md)
 
 ## Getting Started
 
@@ -39,4 +39,5 @@ Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend).
 ## Related docs
 
 - Root [README.md](../../README.md) — full stack setup, API, Docker
+- [CHANGELOG.md](../../CHANGELOG.md) — release history
 - [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md) — container deploy guide

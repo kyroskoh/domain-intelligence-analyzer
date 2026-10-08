@@ -1,6 +1,6 @@
 # Docker Deployment Guide
 
-This document provides comprehensive instructions for deploying DomainPeek **1.3.0** using Docker and Docker Compose (nginx, Redis, and optional Memgraph for entity relations).
+This document provides comprehensive instructions for deploying DomainPeek **1.3.1** using Docker and Docker Compose (nginx, Redis, and optional Memgraph for entity relations). See [CHANGELOG.md](./CHANGELOG.md) for release notes.
 
 ## Prerequisites
 

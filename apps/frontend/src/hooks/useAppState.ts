@@ -28,6 +28,9 @@ export interface AppSettings {
     includeRdap: boolean;
     includeDns: boolean;
     includeSecurityAnalysis: boolean;
+    includeSsl: boolean;
+    includeGeo: boolean;
+    includeDkim: boolean;
   };
 
   // Visualization preferences
@@ -57,6 +60,9 @@ const DEFAULT_SETTINGS: AppSettings = {
     includeRdap: true,
     includeDns: true,
     includeSecurityAnalysis: true,
+    includeSsl: true,
+    includeGeo: true,
+    includeDkim: true,
   },
   enableAnimations: true,
   preferredChartType: 'bar',
@@ -106,7 +112,14 @@ function useAppStateStore(): AppStateContextValue {
         const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
         setState((prev) => ({
           ...prev,
-          settings: { ...DEFAULT_SETTINGS, ...parsedSettings },
+          settings: {
+            ...DEFAULT_SETTINGS,
+            ...parsedSettings,
+            defaultAnalysisOptions: {
+              ...DEFAULT_SETTINGS.defaultAnalysisOptions,
+              ...parsedSettings.defaultAnalysisOptions,
+            },
+          },
         }));
       }
 
@@ -249,7 +262,14 @@ function useAppStateStore(): AppStateContextValue {
             const importedSettings = JSON.parse(
               e.target?.result as string
             ) as AppSettings;
-            const validatedSettings = { ...DEFAULT_SETTINGS, ...importedSettings };
+            const validatedSettings: AppSettings = {
+              ...DEFAULT_SETTINGS,
+              ...importedSettings,
+              defaultAnalysisOptions: {
+                ...DEFAULT_SETTINGS.defaultAnalysisOptions,
+                ...importedSettings.defaultAnalysisOptions,
+              },
+            };
             updateSettings(validatedSettings);
             resolve();
           } catch {

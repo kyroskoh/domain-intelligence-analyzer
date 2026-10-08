@@ -8,6 +8,9 @@ export interface DomainAnalysisRequest {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  includeSsl?: boolean;
+  includeGeo?: boolean;
+  includeDkim?: boolean;
 }
 
 export interface DomainAnalysisOptions {
@@ -15,6 +18,9 @@ export interface DomainAnalysisOptions {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  includeSsl?: boolean;
+  includeGeo?: boolean;
+  includeDkim?: boolean;
   noCache?: boolean;
   private?: boolean;
 }
@@ -521,6 +527,9 @@ class ApiClient {
       if (options.includeRdap !== false) include.push('rdap');
       if (options.includeDns !== false) include.push('dns');
       if (options.includeSecurityAnalysis !== false) include.push('security');
+      if (options.includeSsl !== false) include.push('ssl');
+      if (options.includeGeo !== false) include.push('geo');
+      if (options.includeDkim !== false) include.push('dkim');
       
       if (include.length > 0) {
         params.append('include', include.join(','));
