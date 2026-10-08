@@ -158,7 +158,16 @@ export default function Home() {
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between text-sm text-muted-foreground">
             <p>
-              © 2025 DomainPeek. Built with Next.js and React.
+              © 2025 DomainPeek. Built with Next.js and React by{" "}
+              <a
+                href="https://github.com/kyroskoh"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Kyros Koh
+              </a>
+              .
             </p>
             <div className="flex items-center space-x-4">
               <a

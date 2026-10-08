@@ -43,7 +43,7 @@ A production-grade web application that provides comprehensive domain analysis i
 This project follows a monorepo structure with separate frontend and backend applications:
 
 ```
-domainpeek/
+domain-intelligence-analyzer/
 ├── apps/
 │   ├── frontend/              # Next.js 15 with React 19
 │   └── backend/               # Express.js with TypeScript
@@ -96,8 +96,8 @@ If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.dock
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/kyroskoh/domainpeek.git
-   cd domainpeek
+   git clone https://github.com/kyroskoh/domain-intelligence-analyzer.git
+   cd domain-intelligence-analyzer
    ```
 
 2. **Install dependencies**
@@ -132,8 +132,8 @@ If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.dock
 **Quick Start:**
 ```bash
 # Clone and start with Docker
-git clone https://github.com/kyroskoh/domainpeek.git
-cd domainpeek
+git clone https://github.com/kyroskoh/domain-intelligence-analyzer.git
+cd domain-intelligence-analyzer
 
 # Recommended: installs Docker if missing, then deploys
 ./deploy.sh
@@ -646,8 +646,8 @@ Root `package.json` uses npm `overrides` to pin patched transitive versions (`po
 ## 📞 Support
 
 - 📧 Email: support@domainpeek.com
-- 🐛 Issues: [GitHub Issues](https://github.com/kyroskoh/domainpeek/issues)
-- 💬 Discussions: [GitHub Discussions](https://github.com/kyroskoh/domainpeek/discussions)
+- 🐛 Issues: [GitHub Issues](https://github.com/kyroskoh/domain-intelligence-analyzer/issues)
+- 💬 Discussions: [GitHub Discussions](https://github.com/kyroskoh/domain-intelligence-analyzer/discussions)
 
 ---
 
