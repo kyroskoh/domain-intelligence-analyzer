@@ -2,6 +2,8 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
+**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+
 ## 🚀 Features
 
 ### Core Analysis Engine
@@ -80,7 +82,7 @@ domain-intelligence-analyzer/
 
 ## 🚦 Getting Started
 
-Run locally:
+Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locally:
 
 ### Prerequisites
 
@@ -589,6 +591,8 @@ The application is designed to be deployed on:
 - [x] Complete web interface integration
 - [x] Domain topology network visualizations
 - [x] Security threat analysis and scoring
+- [x] Live demo at [domainpeek.xyz](https://domainpeek.xyz)
+
 ### Phase 2: Advanced Features
 - [x] Interactive D3.js visualizations
 - [x] Advanced export options (multiple formats)
@@ -654,6 +658,7 @@ Root `package.json` uses npm `overrides` to pin patched transitive versions (`po
 ## 🙏 Acknowledgments
 
 - Built with inspiration from [who.is](https://who.is)
+- Live demo: [domainpeek.xyz](https://domainpeek.xyz)
 - Uses open-source DNS and WHOIS data sources
 - Leverages [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json) for all RDAP-capable TLDs
 - Community feedback and contributions
