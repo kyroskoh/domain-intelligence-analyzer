@@ -7,6 +7,7 @@ import DomainDashboard from '@/components/analysis/DomainDashboard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { RealTimeNotifications } from '@/components/notifications/RealTimeNotifications';
 import { useHealth, useDomainSearch, useAppState } from '@/hooks';
 
 export default function Home() {
@@ -49,10 +50,10 @@ export default function Home() {
                 Live demo
               </a>
 
-              {/* Theme Toggle */}
               <ThemeToggle />
-              
-              {/* Connection Status */}
+
+              <RealTimeNotifications monitoredDomain={displayDomain || undefined} />
+
               <Badge 
                 variant={connectionStatus === 'online' ? 'default' : 'destructive'}
                 className="text-xs"
@@ -60,7 +61,6 @@ export default function Home() {
                 {connectionStatus === 'online' ? 'Online' : 'Offline'}
               </Badge>
               
-              {/* API Health Status */}
               {healthQuery.data && (
                 <Badge variant="outline" className="text-xs">
                   <Activity className="h-3 w-3 mr-1" />

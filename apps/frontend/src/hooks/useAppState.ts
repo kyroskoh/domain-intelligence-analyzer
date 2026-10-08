@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useTheme } from 'next-themes';
+import type { DateDisplayTimezone } from '@/lib/utils';
 
 export interface AppSettings {
   // Analysis preferences
@@ -11,6 +12,8 @@ export interface AppSettings {
   // Display preferences
   compactMode: boolean;
   showTimestamps: boolean;
+  /** Registration dates: UTC (default) or browser local timezone */
+  dateTimezone: DateDisplayTimezone;
   defaultAnalysisOptions: {
     includeWhois: boolean;
     includeRdap: boolean;
@@ -40,6 +43,7 @@ const DEFAULT_SETTINGS: AppSettings = {
   enableNotifications: true,
   compactMode: false,
   showTimestamps: true,
+  dateTimezone: 'utc',
   defaultAnalysisOptions: {
     includeWhois: true,
     includeRdap: true,

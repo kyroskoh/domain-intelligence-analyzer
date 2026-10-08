@@ -57,7 +57,14 @@ export function useRdapData(domain: string, enabled: boolean = true) {
     queryFn: () => apiClient.getRdapData(domain),
     enabled: enabled && Boolean(domain),
     staleTime: 10 * 60 * 1000, // 10 minutes
-    retry: 2,
+    // Avoid multiplying wait on hard RDAP timeouts (408 / timed out)
+    retry: (failureCount, error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/timed out|timeout|408/i.test(message)) {
+        return false;
+      }
+      return failureCount < 1;
+    },
   });
 }
 

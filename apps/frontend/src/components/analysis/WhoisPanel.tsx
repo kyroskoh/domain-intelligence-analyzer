@@ -5,18 +5,92 @@ import { Database, Calendar, User, Building, Globe, Clock } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { WhoisData } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { WhoisData, RdapData } from '@/lib/api';
+import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 
 interface WhoisPanelProps {
   data?: WhoisData;
+  /** When WHOIS fields are thin/missing, fill dates and status from RDAP */
+  rdapFallback?: RdapData;
   isLoading: boolean;
   compact?: boolean;
   className?: string;
   warning?: string;
+  dateTimezone?: DateDisplayTimezone;
 }
 
-export default function WhoisPanel({ data, isLoading, compact = false, className, warning }: WhoisPanelProps) {
+function eventDate(rdap: RdapData | undefined, ...actions: string[]): string | undefined {
+  if (!rdap?.events?.length) return undefined;
+  const wanted = new Set(actions.map((a) => a.toLowerCase()));
+  const match = rdap.events.find((e) => wanted.has((e.eventAction || '').toLowerCase().trim()));
+  return match?.eventDate;
+}
+
+function enrichWhoisFromRdap(whois?: WhoisData, rdap?: RdapData): WhoisData | undefined {
+  if (!whois && !rdap) return undefined;
+  if (!rdap) return whois;
+
+  const base: WhoisData = whois
+    ? { ...whois }
+    : {
+        domain: rdap.domain || rdap.ldhName || '',
+        nameservers: [],
+        status: [],
+        raw: '',
+      };
+
+  const created =
+    base.createdDate ||
+    base.creationDate ||
+    eventDate(rdap, 'registration', 'registered');
+  const updated =
+    base.updatedDate ||
+    eventDate(rdap, 'last changed') ||
+    eventDate(rdap, 'last update of rdap database');
+  const expires =
+    base.expirationDate ||
+    base.expiryDate ||
+    eventDate(rdap, 'expiration', 'expired');
+
+  return {
+    ...base,
+    domain: base.domain || rdap.domain || rdap.ldhName || '',
+    domainName: base.domainName || base.domain || rdap.ldhName || rdap.domain,
+    createdDate: created,
+    creationDate: created,
+    updatedDate: updated,
+    expirationDate: expires,
+    expiryDate: expires,
+    status:
+      base.status?.length
+        ? base.status
+        : rdap.status?.length
+          ? [...rdap.status]
+          : [],
+    nameservers:
+      base.nameservers?.length
+        ? base.nameservers
+        : (rdap.nameservers || [])
+            .map((ns) => ns.ldhName || ns.unicodeName || '')
+            .filter(Boolean),
+    registrar:
+      base.registrar?.name
+        ? base.registrar
+        : rdap.registrar?.name
+          ? { name: rdap.registrar.name, url: rdap.registrar.url }
+          : base.registrar,
+  };
+}
+
+export default function WhoisPanel({
+  data: dataProp,
+  rdapFallback,
+  isLoading,
+  compact = false,
+  className,
+  warning,
+  dateTimezone = 'utc',
+}: WhoisPanelProps) {
   if (isLoading) {
     return (
       <Card className={className}>
@@ -40,6 +114,8 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
       </Card>
     );
   }
+
+  const data = enrichWhoisFromRdap(dataProp, rdapFallback);
 
   if (!data) {
     return (
@@ -66,14 +142,17 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
     );
   }
 
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not available';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
-  };
+  const created = data.createdDate || data.creationDate;
+  const updated = data.updatedDate;
+  const expires = data.expirationDate || data.expiryDate;
+  const filledFromRdap = Boolean(
+    rdapFallback &&
+      (
+        ((!dataProp?.createdDate && !dataProp?.creationDate) && created) ||
+        ((!dataProp?.expirationDate && !dataProp?.expiryDate) && expires) ||
+        !dataProp
+      )
+  );
 
   const getDaysUntilExpiry = (expiryDate?: string) => {
     if (!expiryDate) return null;
@@ -88,7 +167,7 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
     }
   };
 
-  const daysUntilExpiry = getDaysUntilExpiry(data.expiryDate);
+  const daysUntilExpiry = getDaysUntilExpiry(expires);
 
   const getExpiryStatus = (days: number | null) => {
     if (days === null) return { variant: 'secondary' as const, text: 'Unknown' };
@@ -102,17 +181,17 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
 
   const fieldsToShow = compact 
     ? [
-        { label: 'Domain', value: data.domainName, icon: <Globe className="h-4 w-4" /> },
-        { label: 'Registrar', value: data.registrar, icon: <Building className="h-4 w-4" /> },
-        { label: 'Expires', value: formatDate(data.expiryDate), icon: <Calendar className="h-4 w-4" /> },
+        { label: 'Domain', value: data.domainName || data.domain, icon: <Globe className="h-4 w-4" /> },
+        { label: 'Registrar', value: data.registrar?.name || data.registrar, icon: <Building className="h-4 w-4" /> },
+        { label: 'Expires', value: formatDisplayDate(expires, dateTimezone), icon: <Calendar className="h-4 w-4" /> },
       ]
     : [
-        { label: 'Domain Name', value: data.domainName, icon: <Globe className="h-4 w-4" /> },
-        { label: 'Registrar', value: data.registrar, icon: <Building className="h-4 w-4" /> },
+        { label: 'Domain Name', value: data.domainName || data.domain, icon: <Globe className="h-4 w-4" /> },
+        { label: 'Registrar', value: data.registrar?.name || data.registrar, icon: <Building className="h-4 w-4" /> },
         { label: 'Registrant', value: data.registrant, icon: <User className="h-4 w-4" /> },
-        { label: 'Creation Date', value: formatDate(data.creationDate), icon: <Calendar className="h-4 w-4" /> },
-        { label: 'Updated Date', value: formatDate(data.updatedDate), icon: <Clock className="h-4 w-4" /> },
-        { label: 'Expiry Date', value: formatDate(data.expiryDate), icon: <Calendar className="h-4 w-4" /> },
+        { label: 'Creation Date', value: formatDisplayDate(created, dateTimezone), icon: <Calendar className="h-4 w-4" /> },
+        { label: 'Updated Date', value: formatDisplayDate(updated, dateTimezone), icon: <Clock className="h-4 w-4" /> },
+        { label: 'Expiry Date', value: formatDisplayDate(expires, dateTimezone), icon: <Calendar className="h-4 w-4" /> },
         { label: 'Status', value: data.status?.join(', '), icon: null },
         { label: 'Name Servers', value: data.nameservers?.join(', '), icon: null },
       ];
@@ -127,13 +206,24 @@ export default function WhoisPanel({ data, isLoading, compact = false, className
               WHOIS Information
             </CardTitle>
           </div>
-          {daysUntilExpiry !== null && (
-            <Badge variant={expiryStatus.variant}>
-              {expiryStatus.text}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2">
+            {filledFromRdap && (
+              <Badge variant="outline" className="text-xs">
+                Dates from RDAP
+              </Badge>
+            )}
+            {daysUntilExpiry !== null && (
+              <Badge variant={expiryStatus.variant}>
+                {expiryStatus.text}
+              </Badge>
+            )}
+          </div>
         </div>
-        <CardDescription>Domain registration and ownership details</CardDescription>
+        <CardDescription>
+          {filledFromRdap
+            ? `WHOIS gaps filled from RDAP · DD/MMM/YYYY (${getTimezoneLabel(dateTimezone)})`
+            : `Domain registration details · DD/MMM/YYYY (${getTimezoneLabel(dateTimezone)})`}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className={cn("space-y-3", compact && "space-y-2")}>

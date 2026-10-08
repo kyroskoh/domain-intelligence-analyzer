@@ -33,6 +33,7 @@ import WhoisPanel from './WhoisPanel';
 import RdapPanel from './RdapPanel';
 import DnsPanel from './DnsPanel';
 import SecurityPanel from './SecurityPanel';
+import DateTimezoneToggle from './DateTimezoneToggle';
 import DomainVisualization from '../visualizations/DomainVisualization';
 import { ExportPanel } from '@/components/ExportPanel';
 import { exportToJSON } from '@/lib/export';
@@ -43,9 +44,10 @@ interface DomainDashboardProps {
 }
 
 export default function DomainDashboard({ domain, className }: DomainDashboardProps) {
-  const { activeView, setActiveView, settings } = useAppState();
+  const { activeView, setActiveView, settings, updateSettings } = useAppState();
   const clearCacheMutation = useClearDomainCache();
   const { toast } = useToast();
+  const dateTimezone = settings.dateTimezone ?? 'utc';
 
   // Fetch all domain data
   const domainAnalysis = useDomainAnalysis(domain, {
@@ -71,8 +73,25 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
     );
   }
 
+  // Prefer combined analysis payload so a standalone /api/rdap timeout is not a hard empty state
+  const resolvedWhois = domainAnalysis.data?.whois ?? whoisData.data;
+  const resolvedRdap = domainAnalysis.data?.rdap ?? rdapData.data;
+  const resolvedDns = domainAnalysis.data?.dns ?? dnsData.data;
+  const rdapWarning =
+    domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
+    (!resolvedRdap && rdapData.error
+      ? /timed out|timeout/i.test(rdapData.error.message)
+        ? 'RDAP timed out; showing WHOIS/DNS where available'
+        : 'RDAP lookup failed for this domain/TLD'
+      : undefined);
+
   const isLoading = domainAnalysis.isLoading || whoisData.isLoading || rdapData.isLoading || dnsData.isLoading;
-  const hasError = domainAnalysis.error || whoisData.error || rdapData.error || dnsData.error;
+  // Standalone RDAP failure is soft when analysis or WHOIS succeeded
+  const hasError =
+    domainAnalysis.error ||
+    whoisData.error ||
+    dnsData.error ||
+    (rdapData.error && !resolvedRdap && !resolvedWhois && !domainAnalysis.data);
   const lastUpdated = domainAnalysis.dataUpdatedAt || Date.now();
 
   const handleRefresh = () => {
@@ -84,9 +103,9 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
       const exportData = {
         domain,
         timestamp: new Date().toISOString(),
-        whois: whoisData.data,
-        rdap: rdapData.data,
-        dns: dnsData.data,
+        whois: resolvedWhois,
+        rdap: resolvedRdap,
+        dns: resolvedDns,
         security: domainAnalysis.data?.security
       };
 
@@ -181,6 +200,11 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         </div>
       </div>
 
+      <DateTimezoneToggle
+        value={dateTimezone}
+        onChange={(next) => updateSettings({ dateTimezone: next })}
+      />
+
       {/* Error Alert */}
       {hasError && (
         <Alert variant="destructive">
@@ -212,25 +236,25 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         <OverviewCard
           title="WHOIS Data"
           icon={<Database className="h-4 w-4" />}
-          isLoading={whoisData.isLoading}
-          hasError={!!whoisData.error}
-          data={whoisData.data}
+          isLoading={whoisData.isLoading && !resolvedWhois}
+          hasError={!resolvedWhois && !!whoisData.error}
+          data={resolvedWhois}
           onClick={() => scrollToSection('whois-section')}
         />
         <OverviewCard
           title="RDAP Info"
           icon={<Network className="h-4 w-4" />}
-          isLoading={rdapData.isLoading}
-          hasError={!!rdapData.error}
-          data={rdapData.data}
+          isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
+          hasError={!resolvedRdap && !!rdapData.error && !rdapWarning}
+          data={resolvedRdap}
           onClick={() => scrollToSection('rdap-section')}
         />
         <OverviewCard
           title="DNS Records"
           icon={<Globe className="h-4 w-4" />}
-          isLoading={dnsData.isLoading}
-          hasError={!!dnsData.error}
-          data={dnsData.data}
+          isLoading={dnsData.isLoading && !resolvedDns}
+          hasError={!resolvedDns && !!dnsData.error}
+          data={resolvedDns}
           onClick={() => scrollToSection('dns-section')}
         />
         <OverviewCard
@@ -256,21 +280,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         <TabsContent value="overview" className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <WhoisPanel
-              data={whoisData.data}
-              isLoading={whoisData.isLoading}
+              data={resolvedWhois}
+              rdapFallback={resolvedRdap}
+              dateTimezone={dateTimezone}
+              isLoading={whoisData.isLoading && !resolvedWhois}
               compact
-              warning={whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+              warning={!resolvedWhois && !resolvedRdap && whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
             />
             <RdapPanel
-              data={rdapData.data}
-              isLoading={rdapData.isLoading}
+              data={resolvedRdap}
+              dateTimezone={dateTimezone}
+              isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
               compact
-              warning={
-                domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
-                (rdapData.error ? 'RDAP lookup failed for this domain/TLD' : undefined)
-              }
+              warning={rdapWarning}
             />
-            <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} compact />
+            <DnsPanel data={resolvedDns} isLoading={dnsData.isLoading && !resolvedDns} compact />
             <SecurityPanel 
               data={domainAnalysis.data?.security} 
               isLoading={domainAnalysis.isLoading} 
@@ -283,23 +307,23 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           <div className="grid grid-cols-1 gap-6">
             <div id="whois-section">
               <WhoisPanel
-                data={whoisData.data}
-                isLoading={whoisData.isLoading}
-                warning={whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+                data={resolvedWhois}
+                rdapFallback={resolvedRdap}
+                dateTimezone={dateTimezone}
+                isLoading={whoisData.isLoading && !resolvedWhois}
+                warning={!resolvedWhois && !resolvedRdap && whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
               />
             </div>
             <div id="rdap-section">
               <RdapPanel
-                data={rdapData.data}
-                isLoading={rdapData.isLoading}
-                warning={
-                  domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
-                  (rdapData.error ? 'RDAP lookup failed for this domain/TLD' : undefined)
-                }
+                data={resolvedRdap}
+                dateTimezone={dateTimezone}
+                isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
+                warning={rdapWarning}
               />
             </div>
             <div id="dns-section">
-              <DnsPanel data={dnsData.data} isLoading={dnsData.isLoading} />
+              <DnsPanel data={resolvedDns} isLoading={dnsData.isLoading && !resolvedDns} />
             </div>
             <div id="security-section">
               <SecurityPanel 
@@ -313,9 +337,9 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         <TabsContent value="visualizations">
           <DomainVisualization 
             domain={domain}
-            whoisData={whoisData.data}
-            dnsData={dnsData.data}
-            rdapData={rdapData.data}
+            whoisData={resolvedWhois}
+            dnsData={resolvedDns}
+            rdapData={resolvedRdap}
             securityData={domainAnalysis.data?.security}
           />
         </TabsContent>
@@ -334,9 +358,9 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                   errors: [],
                   warnings: []
                 },
-                whois: whoisData.data,
-                rdap: rdapData.data,
-                dns: dnsData.data,
+                whois: resolvedWhois,
+                rdap: resolvedRdap,
+                dns: resolvedDns,
                 security: domainAnalysis.data?.security
               }}
             />
@@ -348,9 +372,9 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             <pre className="bg-muted p-4 rounded-lg text-sm overflow-auto max-h-96">
               {JSON.stringify({
                 domain,
-                whois: whoisData.data,
-                rdap: rdapData.data,
-                dns: dnsData.data,
+                whois: resolvedWhois,
+                rdap: resolvedRdap,
+                dns: resolvedDns,
                 analysis: domainAnalysis.data,
               }, null, 2)}
             </pre>

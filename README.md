@@ -7,7 +7,7 @@ A production-grade web application that provides comprehensive domain analysis i
 ## 🚀 Features
 
 ### Core Analysis Engine
-- **WHOIS & RDAP Lookup**: Real-time domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral fallback.
+- **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Dates display as **DD/MMM/YYYY** in UTC by default, with a toggle for your local timezone.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
 - **ASN & IP Intelligence**: Autonomous System Number and IP geolocation data
@@ -30,13 +30,13 @@ A production-grade web application that provides comprehensive domain analysis i
 - **Performance Analytics**: Real-time response time charts and availability metrics
 - **Domain Hierarchy Visualization**: Root → Nameservers → Records → IPs mapping
 - **Health Status Indicators**: Color-coded visual representation of domain health
-- **Real-time Data Updates**: Live monitoring and analysis capabilities
+- **Live DNS Monitoring**: After analyze, the UI subscribes over Socket.IO for real DNS change / TTL alerts (nginx proxies `/socket.io/` in production)
 
 ### Export & Sharing
 - **Multiple Export Formats**: JSON, CSV, PDF reports
 - **Share Links**: Generate temporary shareable analysis links
 - **API Access**: RESTful API for programmatic access
-- **Webhook Integration**: Real-time notifications for domain changes
+- **Webhook Integration**: Planned for Phase 3 (custom alerting)
 
 ## 🏗️ Architecture
 
@@ -337,7 +337,7 @@ npm run smoke:tlds --workspace=@domainpeek/backend
 Backend suites cover:
 - IANA RDAP bootstrap loading and new gTLD availability (`.xyz`, `.fans`, `.app`, …)
 - WHOIS parsing, server overrides, and `whoiser` integration
-- RDAP-first / WHOIS-fallback analysis orchestration
+- Parallel RDAP ∥ WHOIS ∥ DNS analysis; WHOIS gaps filled from RDAP; timeout soft-fail
 
 ### Interactive Chart Testing
 
@@ -426,9 +426,11 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 WHOIS_TIMEOUT_MS=10000
 WHOIS_FOLLOW=2
-RDAP_TIMEOUT_MS=5000
+RDAP_TIMEOUT_MS=15000
 DNS_TIMEOUT_MS=5000
 ```
+
+RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
 
 **Frontend (`apps/frontend/.env.local`)**
 ```env
@@ -545,9 +547,9 @@ The application is designed to be deployed on:
 - [x] Advanced export options (multiple formats)
 - [x] Theme-aware UI components
 - [x] Network topology diagrams
-- [ ] Real-time monitoring
+- [x] Real-time monitoring
 - [ ] Historical data tracking
-- [ ] API rate limiting and authentication
+- [x] API rate limiting (Express + nginx); authentication still open
 
 ### Phase 3: Enterprise Features
 - [ ] Multi-domain bulk analysis

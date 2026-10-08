@@ -122,4 +122,32 @@ describe('DomainAnalysisService registration orchestration', () => {
     expect(result.whois?.registrar?.name).toBe('Fallback Registrar');
     expect(result.meta.warnings.some((w) => w.includes('RDAP not available'))).toBe(true);
   });
+
+  it('builds WHOIS from RDAP when WHOIS lookup fails', async () => {
+    rdapLookup.mockResolvedValue({
+      domain: 'twitch.tv',
+      status: ['client transfer prohibited'],
+      events: [
+        { eventAction: 'registration', eventDate: new Date('2009-06-09T00:00:00Z') },
+        { eventAction: 'expiration', eventDate: new Date('2027-06-09T00:00:00Z') },
+        { eventAction: 'last changed', eventDate: new Date('2026-05-05T00:00:00Z') },
+      ],
+      entities: [],
+      nameservers: [{ ldhName: 'ns1.example.net' }],
+      registrar: { name: 'RDAP Registrar' },
+      raw: {},
+    });
+    whoisLookup.mockRejectedValue(new Error('WHOIS timeout'));
+
+    const result = await service.analyzeDomain({
+      domain: 'twitch.tv',
+      includeSecurityAnalysis: false,
+      includeDns: false,
+    });
+
+    expect(result.whois?.createdDate).toEqual(new Date('2009-06-09T00:00:00Z'));
+    expect(result.whois?.expirationDate).toEqual(new Date('2027-06-09T00:00:00Z'));
+    expect((result.whois as any).creationDate).toEqual(new Date('2009-06-09T00:00:00Z'));
+    expect(result.meta.warnings.some((w) => w.includes('using RDAP registration data'))).toBe(true);
+  });
 });

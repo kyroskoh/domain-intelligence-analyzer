@@ -24,13 +24,11 @@ class WebSocketService {
   private io: SocketIOServer;
   private clients: Map<string, ClientData>;
   private subscriptions: Map<string, Set<MonitoringSubscription>>;
-  private monitoringIntervals: Map<string, NodeJS.Timeout>;
   private dnsMonitoringService: LiveDnsMonitoringService;
 
   constructor(server: HttpServer) {
     this.clients = new Map();
     this.subscriptions = new Map();
-    this.monitoringIntervals = new Map();
 
     // Initialize Socket.IO with CORS configuration
     this.io = new SocketIOServer(server, {
@@ -168,39 +166,15 @@ class WebSocketService {
   }
 
   private handleAnalysisRequest(socket: Socket, domain: string): void {
-    // Emit analysis start notification
-    socket.emit('analysis-started', { domain, timestamp: new Date() });
-    
-    // Trigger comprehensive analysis (this would integrate with existing analysis service)
-    this.triggerDomainAnalysis(domain, socket.id);
-  }
-
-  private async triggerDomainAnalysis(domain: string, clientId: string): Promise<void> {
-    try {
-      // This would integrate with the existing DomainAnalysisService
-      // For now, emit a placeholder response
-      this.io.to(clientId).emit('analysis-complete', {
-        domain,
-        timestamp: new Date(),
-        status: 'completed',
-        // Analysis results would go here
-      });
-    } catch (error) {
-      logger.error(`Analysis failed for domain ${domain}:`, error);
-      this.io.to(clientId).emit('analysis-error', {
-        domain,
-        error: 'Analysis failed',
-        timestamp: new Date(),
-      });
-    }
+    socket.emit('analysis-error', {
+      domain,
+      error: 'Use POST /api/analyze for domain analysis; WebSocket is for live DNS monitoring only',
+      timestamp: new Date(),
+    });
   }
 
   private startDomainMonitoring(domain: string): void {
-    if (this.monitoringIntervals.has(domain)) {
-      return; // Already monitoring
-    }
-
-    // Start DNS monitoring service for this domain
+    // LiveDnsMonitoringService is the sole poller (real DNS change detection)
     this.dnsMonitoringService.startMonitoring(domain, {
       checkInterval: 5 * 60 * 1000, // 5 minutes
       alertThresholds: {
@@ -208,73 +182,12 @@ class WebSocketService {
         criticalChanges: ['A', 'AAAA', 'NS']
       }
     });
-
-    // Start periodic monitoring (every 5 minutes)
-    const interval = setInterval(() => {
-      this.performDomainCheck(domain);
-    }, 5 * 60 * 1000);
-
-    this.monitoringIntervals.set(domain, interval);
-    logger.info(`🔍 Started monitoring domain: ${domain}`);
-
-    // Perform initial check
-    this.performDomainCheck(domain);
+    logger.info(`🔍 Started LiveDns monitoring for domain: ${domain}`);
   }
 
   private stopDomainMonitoring(domain: string): void {
-    // Stop DNS monitoring service
     this.dnsMonitoringService.stopMonitoring(domain);
-    
-    const interval = this.monitoringIntervals.get(domain);
-    if (interval) {
-      clearInterval(interval);
-      this.monitoringIntervals.delete(domain);
-      logger.info(`🛑 Stopped monitoring domain: ${domain}`);
-    }
-  }
-
-  private async performDomainCheck(domain: string): Promise<void> {
-    try {
-      // This would perform actual DNS/security checks
-      // For now, emit test notifications
-      const subscriptions = this.subscriptions.get(domain);
-      if (!subscriptions || subscriptions.size === 0) return;
-
-      // Simulate DNS change detection
-      if (Math.random() > 0.9) { // 10% chance of change notification
-        this.io.to(`domain:${domain}`).emit('dns-change-detected', {
-          domain,
-          changeType: 'A_RECORD',
-          oldValue: '1.2.3.4',
-          newValue: '5.6.7.8',
-          timestamp: new Date(),
-          severity: 'medium',
-        });
-      }
-
-      // Simulate security alert
-      if (Math.random() > 0.95) { // 5% chance of security alert
-        this.io.to(`domain:${domain}`).emit('security-alert', {
-          domain,
-          alertType: 'certificate_change',
-          message: 'SSL certificate has been renewed',
-          severity: 'low',
-          timestamp: new Date(),
-        });
-      }
-
-      // Update security score
-      const newScore = Math.floor(Math.random() * 100);
-      this.io.to(`domain:${domain}`).emit('security-score-update', {
-        domain,
-        oldScore: newScore - 5,
-        newScore,
-        timestamp: new Date(),
-      });
-
-    } catch (error) {
-      logger.error(`Domain check failed for ${domain}:`, error);
-    }
+    logger.info(`🛑 Stopped LiveDns monitoring for domain: ${domain}`);
   }
 
   private updateClientActivity(clientId: string): void {

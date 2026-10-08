@@ -5,7 +5,7 @@ import { io, Socket } from 'socket.io-client';
 
 export interface WebSocketNotification {
   id: string;
-  type: 'dns-change' | 'security-alert' | 'score-update' | 'analysis-complete' | 'error';
+  type: 'dns-change' | 'security-alert' | 'score-update' | 'analysis-complete' | 'error' | 'ttl-warning';
   domain: string;
   title: string;
   message: string;
@@ -38,6 +38,31 @@ interface DomainSubscription {
   };
 }
 
+function resolveSocketUrl(): string {
+  const envUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL ||
+    '';
+
+  if (typeof window !== 'undefined') {
+    if (!envUrl) {
+      return window.location.origin;
+    }
+    try {
+      const parsed = new URL(envUrl, window.location.origin);
+      // Same-origin nginx deploy: hit /socket.io/ on the public site
+      if (parsed.origin === window.location.origin) {
+        return window.location.origin;
+      }
+      return parsed.origin;
+    } catch {
+      return envUrl;
+    }
+  }
+
+  return envUrl || 'http://localhost:4001';
+}
+
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
     autoConnect = true,
@@ -59,26 +84,31 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const socket = useRef<Socket | null>(null);
   const reconnectTimeout = useRef<NodeJS.Timeout | null>(null);
   const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
+  const onNotificationRef = useRef(onNotification);
+  onNotificationRef.current = onNotification;
+
+  const addNotification = useCallback((notification: WebSocketNotification) => {
+    setNotifications(prev => [notification, ...prev.slice(0, 49)]);
+    onNotificationRef.current?.(notification);
+  }, []);
+
+  const scheduleReconnectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (socket.current?.connected) return;
 
     setConnectionStatus(prev => ({ ...prev, connecting: true, error: null }));
 
-    const serverUrl =
-      process.env.NEXT_PUBLIC_API_URL ||
-      process.env.NEXT_PUBLIC_API_BASE_URL ||
-      'http://localhost:4001';
-    
+    const serverUrl = resolveSocketUrl();
+
     socket.current = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 10000,
       forceNew: false,
+      path: '/socket.io/',
     });
 
-    // Connection established
     socket.current.on('connect', () => {
-      console.log('✅ WebSocket connected');
       setConnectionStatus({
         connected: true,
         connecting: false,
@@ -86,15 +116,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         reconnectAttempts: 0,
       });
 
-      // Start heartbeat
       heartbeatInterval.current = setInterval(() => {
         socket.current?.emit('heartbeat');
       }, 30000);
     });
 
-    // Connection failed
     socket.current.on('connect_error', (error) => {
-      console.error('❌ WebSocket connection error:', error);
       setConnectionStatus(prev => ({
         connected: false,
         connecting: false,
@@ -103,41 +130,28 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       }));
     });
 
-    // Disconnected
     socket.current.on('disconnect', (reason) => {
-      console.warn('🔌 WebSocket disconnected:', reason);
       setConnectionStatus(prev => ({
         ...prev,
         connected: false,
         connecting: false,
       }));
 
-      // Clear heartbeat
       if (heartbeatInterval.current) {
         clearInterval(heartbeatInterval.current);
         heartbeatInterval.current = null;
       }
 
-      // Auto-reconnect if not manually disconnected
       if (reason !== 'io client disconnect' && reconnectTimeout.current === null) {
-        scheduleReconnect();
+        scheduleReconnectRef.current();
       }
     });
 
-    // Welcome message
-    socket.current.on('connected', (data) => {
-      console.log('🎉 WebSocket welcome message:', data);
-    });
-
-    // Domain subscription confirmed
     socket.current.on('subscription-confirmed', (data: { domain: string; options: any }) => {
-      console.log('📡 Domain subscription confirmed:', data);
       setSubscribedDomains(prev => new Set([...prev, data.domain]));
     });
 
-    // Domain unsubscription confirmed
     socket.current.on('unsubscription-confirmed', (data: { domain: string }) => {
-      console.log('📡 Domain unsubscription confirmed:', data);
       setSubscribedDomains(prev => {
         const newSet = new Set(prev);
         newSet.delete(data.domain);
@@ -145,9 +159,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       });
     });
 
-    // DNS change detection
     socket.current.on('dns-change-detected', (data) => {
-      const notification: WebSocketNotification = {
+      addNotification({
         id: `dns-${Date.now()}`,
         type: 'dns-change',
         domain: data.domain,
@@ -156,13 +169,37 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         severity: data.severity || 'medium',
         timestamp: new Date(data.timestamp),
         data,
-      };
-      addNotification(notification);
+      });
     });
 
-    // Security alerts
+    socket.current.on('ttl-warning', (data) => {
+      addNotification({
+        id: `ttl-${Date.now()}`,
+        type: 'ttl-warning',
+        domain: data.domain,
+        title: 'Low TTL Warning',
+        message: data.message || `TTL for ${data.recordType || 'record'} is below threshold (${data.ttl ?? '?'}s)`,
+        severity: data.severity || 'low',
+        timestamp: new Date(data.timestamp || Date.now()),
+        data,
+      });
+    });
+
+    socket.current.on('dns-check-error', (data) => {
+      addNotification({
+        id: `dns-err-${Date.now()}`,
+        type: 'error',
+        domain: data.domain,
+        title: 'DNS Check Failed',
+        message: data.error || data.message || 'DNS monitoring check failed',
+        severity: 'medium',
+        timestamp: new Date(data.timestamp || Date.now()),
+        data,
+      });
+    });
+
     socket.current.on('security-alert', (data) => {
-      const notification: WebSocketNotification = {
+      addNotification({
         id: `security-${Date.now()}`,
         type: 'security-alert',
         domain: data.domain,
@@ -171,13 +208,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         severity: data.severity || 'medium',
         timestamp: new Date(data.timestamp),
         data,
-      };
-      addNotification(notification);
+      });
     });
 
-    // Security score updates
     socket.current.on('security-score-update', (data) => {
-      const notification: WebSocketNotification = {
+      addNotification({
         id: `score-${Date.now()}`,
         type: 'score-update',
         domain: data.domain,
@@ -186,13 +221,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         severity: data.newScore > data.oldScore ? 'low' : 'medium',
         timestamp: new Date(data.timestamp),
         data,
-      };
-      addNotification(notification);
+      });
     });
 
-    // Analysis complete
     socket.current.on('analysis-complete', (data) => {
-      const notification: WebSocketNotification = {
+      addNotification({
         id: `analysis-${Date.now()}`,
         type: 'analysis-complete',
         domain: data.domain,
@@ -201,13 +234,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         severity: 'low',
         timestamp: new Date(data.timestamp),
         data,
-      };
-      addNotification(notification);
+      });
     });
 
-    // Analysis errors
     socket.current.on('analysis-error', (data) => {
-      const notification: WebSocketNotification = {
+      addNotification({
         id: `error-${Date.now()}`,
         type: 'error',
         domain: data.domain,
@@ -216,11 +247,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
         severity: 'high',
         timestamp: new Date(data.timestamp),
         data,
-      };
-      addNotification(notification);
+      });
     });
-
-  }, []);
+  }, [addNotification]);
 
   const scheduleReconnect = useCallback(() => {
     if (reconnectTimeout.current) return;
@@ -237,12 +266,16 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     reconnectTimeout.current = setTimeout(() => {
       reconnectTimeout.current = null;
-      if (connectionStatus.reconnectAttempts < maxReconnectAttempts) {
-        console.log('🔄 Attempting to reconnect...');
-        connect();
-      }
+      setConnectionStatus(prev => {
+        if (prev.reconnectAttempts < maxReconnectAttempts) {
+          connect();
+        }
+        return prev;
+      });
     }, reconnectDelay);
-  }, [connect, reconnectDelay, maxReconnectAttempts, connectionStatus.reconnectAttempts]);
+  }, [connect, reconnectDelay, maxReconnectAttempts]);
+
+  scheduleReconnectRef.current = scheduleReconnect;
 
   const disconnect = useCallback(() => {
     if (reconnectTimeout.current) {
@@ -264,14 +297,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     });
   }, []);
 
-  const addNotification = useCallback((notification: WebSocketNotification) => {
-    setNotifications(prev => [notification, ...prev.slice(0, 49)]); // Keep last 50
-    onNotification?.(notification);
-  }, [onNotification]);
-
   const subscribeToDomain = useCallback((subscription: DomainSubscription) => {
     if (!socket.current?.connected) {
-      console.warn('Cannot subscribe: WebSocket not connected');
       return false;
     }
 
@@ -281,7 +308,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   const unsubscribeFromDomain = useCallback((domain: string) => {
     if (!socket.current?.connected) {
-      console.warn('Cannot unsubscribe: WebSocket not connected');
       return false;
     }
 
@@ -291,7 +317,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   const requestAnalysis = useCallback((domain: string) => {
     if (!socket.current?.connected) {
-      console.warn('Cannot request analysis: WebSocket not connected');
       return false;
     }
 
@@ -307,7 +332,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     setNotifications(prev => prev.filter(n => n.id !== id));
   }, []);
 
-  // Auto-connect on mount
   useEffect(() => {
     if (autoConnect) {
       connect();
@@ -319,20 +343,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, [autoConnect, connect, disconnect]);
 
   return {
-    // Connection state
     connectionStatus,
     connect,
     disconnect,
-    
-    // Domain subscriptions
     subscribedDomains: Array.from(subscribedDomains),
     subscribeToDomain,
     unsubscribeFromDomain,
-    
-    // Analysis
     requestAnalysis,
-    
-    // Notifications
     notifications,
     clearNotifications,
     removeNotification,

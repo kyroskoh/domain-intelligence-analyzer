@@ -69,69 +69,68 @@ export class DomainAnalysisService {
         return cachedResult;
       }
 
-      // RDAP-first for bootstrapped TLDs, then WHOIS (fallback / complementary), DNS in parallel with WHOIS
+      // Run RDAP, WHOIS, and DNS in parallel so a slow RDAP server does not delay the rest
       await this.rdapService.ensureReady();
 
+      const wantRdap = request.includeRdap !== false;
+      const wantWhois = request.includeWhois !== false;
+      const wantDns = request.includeDns !== false;
+
+      const [rdapSettled, whoisSettled, dnsSettled] = await Promise.allSettled([
+        wantRdap ? this.performRdapLookup(domain, meta) : Promise.resolve(null),
+        wantWhois ? this.performWhoisLookup(domain, meta) : Promise.resolve(null),
+        wantDns ? this.performDnsLookup(domain, meta) : Promise.resolve(null),
+      ]);
+
       let rdapData: RdapData | null = null;
-      if (request.includeRdap !== false) {
-        try {
-          rdapData = await this.performRdapLookup(domain, meta);
-          if (rdapData) {
-            response.rdap = rdapData;
-          }
-        } catch (error) {
-          meta.warnings.push(`RDAP lookup failed: ${(error as Error).message}`);
+      if (wantRdap) {
+        if (rdapSettled.status === 'fulfilled' && rdapSettled.value) {
+          rdapData = rdapSettled.value;
+          response.rdap = rdapData;
+        } else if (rdapSettled.status === 'rejected') {
+          const err = rdapSettled.reason as Error;
+          const isTimeout =
+            err?.name === 'TimeoutError' || /timed out/i.test(err?.message || '');
+          meta.warnings.push(
+            isTimeout
+              ? 'RDAP timed out; showing WHOIS/DNS where available'
+              : `RDAP lookup failed: ${err.message}`
+          );
         }
       }
 
-      const secondaryPromises: Array<Promise<WhoisData | DnsData | null>> = [];
-      const wantWhois = request.includeWhois !== false;
-      const wantDns = request.includeDns !== false;
       const rdapThin = !rdapData || this.isRdapThin(rdapData);
 
       if (wantWhois) {
-        secondaryPromises.push(
-          this.performWhoisLookup(domain, meta).catch((error) => {
-            if (!rdapData) {
-              meta.errors.push(`WHOIS lookup failed: ${(error as Error).message}`);
-            } else {
-              meta.warnings.push(`WHOIS lookup failed: ${(error as Error).message}`);
-            }
-            return null;
-          })
-        );
-      }
-
-      if (wantDns) {
-        secondaryPromises.push(
-          this.performDnsLookup(domain, meta).catch((error) => {
-            meta.errors.push(`DNS lookup failed: ${(error as Error).message}`);
-            return null;
-          })
-        );
-      }
-
-      const secondaryResults = await Promise.allSettled(secondaryPromises);
-      let secondaryIndex = 0;
-
-      if (wantWhois) {
-        const whoisResult = secondaryResults[secondaryIndex++];
-        if (whoisResult.status === 'fulfilled' && whoisResult.value) {
-          response.whois = whoisResult.value as WhoisData;
+        if (whoisSettled.status === 'fulfilled' && whoisSettled.value) {
+          response.whois = whoisSettled.value as WhoisData;
+        } else if (whoisSettled.status === 'rejected') {
+          const err = whoisSettled.reason as Error;
+          if (!rdapData) {
+            meta.errors.push(`WHOIS lookup failed: ${err.message}`);
+          } else {
+            meta.warnings.push(`WHOIS lookup failed: ${err.message}`);
+          }
         } else if (rdapData && rdapThin) {
           meta.warnings.push('WHOIS unavailable; using RDAP registration data only');
         }
       }
 
       if (wantDns) {
-        const dnsResult = secondaryResults[secondaryIndex++];
-        if (dnsResult.status === 'fulfilled' && dnsResult.value) {
-          response.dns = dnsResult.value as DnsData;
+        if (dnsSettled.status === 'fulfilled' && dnsSettled.value) {
+          response.dns = dnsSettled.value as DnsData;
+        } else if (dnsSettled.status === 'rejected') {
+          meta.errors.push(
+            `DNS lookup failed: ${(dnsSettled.reason as Error).message}`
+          );
         }
       }
 
       if (response.rdap && response.whois) {
         response.whois = this.mergeRegistrationData(response.whois, response.rdap);
+      } else if (response.rdap && !response.whois) {
+        response.whois = this.whoisFromRdap(response.rdap);
+        meta.warnings.push('WHOIS unavailable; using RDAP registration data for WHOIS fields');
       }
 
       // Perform security analysis if requested
@@ -254,9 +253,14 @@ export class DomainAnalysisService {
 
   /**
    * Fill gaps in WHOIS structured fields from RDAP when available.
+   * Also sets creationDate/expiryDate aliases used by the frontend panel.
    */
   private mergeRegistrationData(whois: WhoisData, rdap: RdapData): WhoisData {
     const merged: WhoisData = { ...whois };
+
+    if (!merged.domain && rdap.domain) {
+      merged.domain = rdap.domain;
+    }
 
     if (!merged.registrar?.name && rdap.registrar?.name) {
       merged.registrar = {
@@ -275,23 +279,58 @@ export class DomainAnalysisService {
       merged.status = [...rdap.status];
     }
 
+    let registrationDate: Date | string | undefined;
+    let expirationDate: Date | string | undefined;
+    let lastChangedDate: Date | string | undefined;
+    let rdapDbUpdateDate: Date | string | undefined;
+
     for (const event of rdap.events || []) {
-      const action = (event.eventAction || '').toLowerCase();
-      if ((action === 'registration' || action === 'registered') && !merged.createdDate) {
-        merged.createdDate = event.eventDate;
-      }
-      if ((action === 'expiration' || action === 'expired') && !merged.expirationDate) {
-        merged.expirationDate = event.eventDate;
-      }
-      if (
-        (action === 'last changed' || action === 'last update of rdap database' || action === 'last changed') &&
-        !merged.updatedDate
-      ) {
-        merged.updatedDate = event.eventDate;
+      const action = (event.eventAction || '').toLowerCase().trim();
+      if (action === 'registration' || action === 'registered') {
+        registrationDate ??= event.eventDate;
+      } else if (action === 'expiration' || action === 'expired') {
+        expirationDate ??= event.eventDate;
+      } else if (action === 'last changed') {
+        lastChangedDate ??= event.eventDate;
+      } else if (action === 'last update of rdap database') {
+        rdapDbUpdateDate ??= event.eventDate;
       }
     }
 
+    if (!merged.createdDate && registrationDate) {
+      merged.createdDate = registrationDate as Date;
+    }
+    if (!merged.expirationDate && expirationDate) {
+      merged.expirationDate = expirationDate as Date;
+    }
+    if (!merged.updatedDate && (lastChangedDate || rdapDbUpdateDate)) {
+      merged.updatedDate = (lastChangedDate || rdapDbUpdateDate) as Date;
+    }
+
+    // Frontend WhoisPanel aliases
+    const anyMerged = merged as WhoisData & {
+      creationDate?: Date | string;
+      expiryDate?: Date | string;
+      domainName?: string;
+    };
+    anyMerged.creationDate ??= merged.createdDate;
+    anyMerged.expiryDate ??= merged.expirationDate;
+    anyMerged.domainName ??= merged.domain || rdap.domain;
+
     return merged;
+  }
+
+  /**
+   * Build a WHOIS-shaped object from RDAP when WHOIS itself is unavailable.
+   */
+  private whoisFromRdap(rdap: RdapData): WhoisData {
+    return this.mergeRegistrationData(
+      {
+        domain: rdap.domain,
+        raw: '',
+      } as WhoisData,
+      rdap
+    );
   }
 
   /**

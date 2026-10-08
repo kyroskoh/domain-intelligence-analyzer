@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RdapData } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 
 interface RdapPanelProps {
   data?: RdapData;
@@ -15,9 +15,17 @@ interface RdapPanelProps {
   compact?: boolean;
   className?: string;
   warning?: string;
+  dateTimezone?: DateDisplayTimezone;
 }
 
-export default function RdapPanel({ data, isLoading, compact = false, className, warning }: RdapPanelProps) {
+export default function RdapPanel({
+  data,
+  isLoading,
+  compact = false,
+  className,
+  warning,
+  dateTimezone = 'utc',
+}: RdapPanelProps) {
   if (isLoading) {
     return (
       <Card className={className}>
@@ -43,6 +51,7 @@ export default function RdapPanel({ data, isLoading, compact = false, className,
   }
 
   if (!data) {
+    const isTimeout = Boolean(warning && /timed out|timeout/i.test(warning));
     return (
       <Card className={className}>
         <CardHeader>
@@ -55,27 +64,21 @@ export default function RdapPanel({ data, isLoading, compact = false, className,
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Network className="h-12 w-12 mx-auto mb-2" />
-            <p>{warning || 'No RDAP data available for this TLD'}</p>
-            {!warning && (
-              <p className="text-xs mt-2">
-                RDAP covers all TLDs listed in the IANA RDAP bootstrap (including new gTLDs).
-                WHOIS may still be available as a fallback.
-              </p>
-            )}
+            <p>
+              {warning || 'No RDAP data available for this TLD'}
+            </p>
+            <p className="text-xs mt-2">
+              {isTimeout
+                ? 'The RDAP server did not respond in time. Registration details may still appear under WHOIS.'
+                : warning
+                  ? 'WHOIS may still provide registration details for this domain.'
+                  : 'RDAP covers all TLDs listed in the IANA RDAP bootstrap (including new gTLDs). WHOIS may still be available as a fallback.'}
+            </p>
           </div>
         </CardContent>
       </Card>
     );
   }
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not available';
-    try {
-      return new Date(dateString).toLocaleDateString();
-    } catch {
-      return dateString;
-    }
-  };
 
   const renderEntity = (entity: any, index: number) => {
     if (!entity) return null;
@@ -141,7 +144,9 @@ export default function RdapPanel({ data, isLoading, compact = false, className,
             </Badge>
           )}
         </div>
-        <CardDescription>Registration Data Access Protocol details</CardDescription>
+        <CardDescription>
+          Registration Data Access Protocol details · dates DD/MMM/YYYY ({getTimezoneLabel(dateTimezone)})
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className={cn("space-y-4", compact && "space-y-3")}>
@@ -191,7 +196,7 @@ export default function RdapPanel({ data, isLoading, compact = false, className,
                       <span className="capitalize">{event.eventAction?.replace('_', ' ')}</span>
                     </div>
                     <span className="text-muted-foreground">
-                      {formatDate(event.eventDate)}
+                      {formatDisplayDate(event.eventDate, dateTimezone) || 'Not available'}
                     </span>
                   </div>
                 ))}

@@ -228,7 +228,7 @@ ensure_public_api_urls() {
     log "(override with PUBLIC_API_URL=...; rebuild required after change)"
 }
 
-# Ensure .env CORS_ORIGINS includes public host, domainpeek.xyz, localhost (merge, do not wipe extras)
+# Ensure .env CORS_ORIGINS includes public host, DOMAIN_NAME/SANs, domainpeek.xyz, localhost
 ensure_cors_origins() {
     local host
     host="$(detect_public_host)"
@@ -249,6 +249,34 @@ ensure_cors_origins() {
     else
         warn "Could not detect public host; set PUBLIC_HOST=... to include IP origins in CORS_ORIGINS"
     fi
+
+    # Merge DOMAIN_NAME and CERTBOT_DOMAINS (SANs) as https/http origins
+    local domain_list=()
+    local dn
+    dn="$(env_get DOMAIN_NAME)"
+    dn="${DOMAIN_NAME:-$dn}"
+    if [ -n "$dn" ]; then
+        domain_list+=("$dn")
+    fi
+    local sans
+    sans="$(env_get CERTBOT_DOMAINS)"
+    sans="${CERTBOT_DOMAINS:-$sans}"
+    if [ -n "$sans" ]; then
+        local san
+        IFS=',' read -ra _san_arr <<< "$sans"
+        for san in "${_san_arr[@]}"; do
+            san="$(echo "$san" | tr -d '[:space:]')"
+            [ -n "$san" ] && domain_list+=("$san")
+        done
+    fi
+
+    local d
+    for d in "${domain_list[@]}"; do
+        required+=(
+            "https://${d}"
+            "http://${d}"
+        )
+    done
 
     local current=""
     if grep -q '^CORS_ORIGINS=' .env 2>/dev/null; then
@@ -278,9 +306,9 @@ ensure_cors_origins() {
     fi
 
     if [ -n "$host" ]; then
-        log "CORS_ORIGINS includes ${host} + domainpeek.xyz (override IP with PUBLIC_HOST=...)"
+        log "CORS_ORIGINS includes ${host} + DOMAIN_NAME/SANs + domainpeek.xyz"
     else
-        log "CORS_ORIGINS includes domainpeek.xyz + localhost"
+        log "CORS_ORIGINS includes DOMAIN_NAME/SANs + domainpeek.xyz + localhost"
     fi
 }
 
@@ -398,18 +426,21 @@ show_status() {
 
     echo ""
     log "Access URLs:"
-    echo "  Frontend:     http://localhost:4000"
-    echo "  Backend API:  http://localhost:4001"
-    echo "  API Docs:     http://localhost:4001/docs"
-    echo "  Browser API:  ${public_api}  (inlined into frontend build)"
+    if using_nginx_profile; then
+        echo "  Public site:  ${public_api}"
+        echo "  Nginx:        http://localhost:80 / https://localhost:443"
+        echo "  Browser API:  ${public_api}  (inlined into frontend build; /api + /socket.io)"
+        echo "  Direct FE:    http://localhost:4000  (bypass nginx)"
+        echo "  Direct API:   http://localhost:4001  (bypass nginx)"
+    else
+        echo "  Frontend:     http://localhost:4000"
+        echo "  Backend API:  http://localhost:4001"
+        echo "  API Docs:     http://localhost:4001/docs"
+        echo "  Browser API:  ${public_api}  (inlined into frontend build)"
+    fi
     
     if [[ "$PROFILE" == *"redis"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"redis"* ]]; then
         echo "  Redis:        localhost:6379"
-    fi
-    
-    if using_nginx_profile; then
-        echo "  Nginx:        http://localhost:80 / https://localhost:443"
-        echo "  Public site:  ${public_api}"
     fi
 }
 

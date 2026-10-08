@@ -160,7 +160,9 @@ With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Por
    - Profile: `redis`
 
 4. **Nginx** (`nginx`)
-   - Reverse proxy (`/` → frontend, `/api/` and `/health` → backend)
+   - Reverse proxy (`/` → frontend; `/api/`, `/health`, and `/socket.io/` → backend)
+   - `/socket.io/` must hit the backend (WebSocket upgrade + long `proxy_read_timeout`)
+     so live DNS monitoring works when `NEXT_PUBLIC_API_*` is the public site origin
    - Ports: 80, 443
    - Profile: `nginx` (not started unless enabled)
    - Custom image (`docker/nginx`) based on `nginx:alpine`; apk installs

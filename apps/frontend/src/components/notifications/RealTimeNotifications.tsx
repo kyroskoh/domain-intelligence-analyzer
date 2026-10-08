@@ -1,33 +1,22 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Bell, Wifi, WifiOff, AlertTriangle, CheckCircle, X, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Bell, Wifi, WifiOff, X, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWebSocket, WebSocketNotification, ConnectionStatus } from '@/hooks/useWebSocket';
 
 interface RealTimeNotificationsProps {
   className?: string;
+  /** Domain to auto-subscribe for live DNS monitoring after analyze */
+  monitoredDomain?: string;
 }
-
-const getSeverityColor = (severity: string) => {
-  switch (severity) {
-    case 'critical': return 'bg-red-500';
-    case 'high': return 'bg-orange-500';
-    case 'medium': return 'bg-yellow-500';
-    case 'low': return 'bg-blue-500';
-    default: return 'bg-gray-500';
-  }
-};
 
 const getSeverityBadgeVariant = (severity: string) => {
   switch (severity) {
@@ -44,6 +33,7 @@ const getNotificationIcon = (type: string) => {
     case 'dns-change': return '🔧';
     case 'security-alert': return '🚨';
     case 'score-update': return '📊';
+    case 'ttl-warning': return '⏱️';
     case 'analysis-complete': return '✅';
     case 'error': return '❌';
     default: return '📧';
@@ -57,7 +47,7 @@ const ConnectionIndicator: React.FC<{ status: ConnectionStatus }> = ({ status })
         <div className="animate-pulse">
           <Wifi className="h-4 w-4" />
         </div>
-        <span className="text-sm">Connecting...</span>
+        <span className="text-sm hidden sm:inline">Connecting...</span>
       </div>
     );
   }
@@ -66,7 +56,7 @@ const ConnectionIndicator: React.FC<{ status: ConnectionStatus }> = ({ status })
     return (
       <div className="flex items-center space-x-2 text-green-600">
         <Wifi className="h-4 w-4" />
-        <span className="text-sm">Connected</span>
+        <span className="text-sm hidden sm:inline">Live</span>
       </div>
     );
   }
@@ -74,14 +64,9 @@ const ConnectionIndicator: React.FC<{ status: ConnectionStatus }> = ({ status })
   return (
     <div className="flex items-center space-x-2 text-red-600">
       <WifiOff className="h-4 w-4" />
-      <span className="text-sm">
-        {status.error ? 'Connection Error' : 'Disconnected'}
+      <span className="text-sm hidden sm:inline">
+        {status.error ? 'Offline' : 'Offline'}
       </span>
-      {status.reconnectAttempts > 0 && (
-        <Badge variant="secondary" className="text-xs">
-          Retry {status.reconnectAttempts}
-        </Badge>
-      )}
     </div>
   );
 };
@@ -107,7 +92,7 @@ const NotificationItem: React.FC<{
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-2 mb-1">
                 <h4 className="font-medium text-sm truncate">{notification.title}</h4>
-                <Badge 
+                <Badge
                   variant={getSeverityBadgeVariant(notification.severity)}
                   className="text-xs"
                 >
@@ -141,43 +126,68 @@ const NotificationItem: React.FC<{
   );
 };
 
-export function RealTimeNotifications({ className = '' }: RealTimeNotificationsProps) {
+export function RealTimeNotifications({
+  className = '',
+  monitoredDomain,
+}: RealTimeNotificationsProps) {
   const [isOpen, setIsOpen] = useState(false);
-  
+  const previousDomainRef = useRef<string | undefined>(undefined);
+
   const {
     connectionStatus,
     notifications,
     clearNotifications,
     removeNotification,
     connect,
-    disconnect,
+    subscribeToDomain,
+    unsubscribeFromDomain,
+    subscribedDomains,
   } = useWebSocket({
     onNotification: (notification) => {
-      console.log('New notification:', notification);
-      
-      // Auto-show dropdown for critical notifications
       if (notification.severity === 'critical') {
         setIsOpen(true);
       }
     },
   });
 
-  const unreadCount = notifications.filter(n => 
-    Date.now() - n.timestamp.getTime() < 300000 // 5 minutes
+  useEffect(() => {
+    if (!connectionStatus.connected) return;
+
+    const previous = previousDomainRef.current;
+    if (previous && previous !== monitoredDomain) {
+      unsubscribeFromDomain(previous);
+    }
+
+    if (monitoredDomain && !subscribedDomains.includes(monitoredDomain)) {
+      subscribeToDomain({
+        domain: monitoredDomain,
+        options: { dns: true, security: true, realTimeScoring: false },
+      });
+    }
+
+    previousDomainRef.current = monitoredDomain;
+  }, [
+    monitoredDomain,
+    connectionStatus.connected,
+    subscribeToDomain,
+    unsubscribeFromDomain,
+    subscribedDomains,
+  ]);
+
+  const unreadCount = notifications.filter(n =>
+    Date.now() - n.timestamp.getTime() < 300000
   ).length;
 
   return (
-    <div className={`flex items-center space-x-4 ${className}`}>
-      {/* Connection Status */}
+    <div className={`flex items-center space-x-3 ${className}`}>
       <ConnectionIndicator status={connectionStatus} />
-      
-      {/* Notifications Dropdown */}
+
       <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className="relative">
+          <Button variant="outline" size="sm" className="relative" aria-label="Live notifications">
             <Bell className="h-4 w-4" />
             {unreadCount > 0 && (
-              <Badge 
+              <Badge
                 className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs bg-red-500"
               >
                 {unreadCount > 99 ? '99+' : unreadCount}
@@ -185,11 +195,11 @@ export function RealTimeNotifications({ className = '' }: RealTimeNotificationsP
             )}
           </Button>
         </DropdownMenuTrigger>
-        
+
         <DropdownMenuContent align="end" className="w-96">
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-lg">Real-time Notifications</h3>
+              <h3 className="font-semibold text-lg">Live DNS Alerts</h3>
               <div className="flex items-center space-x-2">
                 {notifications.length > 0 && (
                   <Button
@@ -198,7 +208,7 @@ export function RealTimeNotifications({ className = '' }: RealTimeNotificationsP
                     onClick={clearNotifications}
                   >
                     <Trash2 className="h-4 w-4 mr-1" />
-                    Clear All
+                    Clear
                   </Button>
                 )}
                 {!connectionStatus.connected && (
@@ -212,9 +222,15 @@ export function RealTimeNotifications({ className = '' }: RealTimeNotificationsP
                 )}
               </div>
             </div>
-            
+
+            {monitoredDomain && (
+              <p className="text-xs text-muted-foreground mb-3">
+                Monitoring: <span className="font-mono">{monitoredDomain}</span>
+              </p>
+            )}
+
             {notifications.length > 0 ? (
-              <ScrollArea className="h-96">
+              <div className="h-96 overflow-y-auto pr-1">
                 {notifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
@@ -222,37 +238,21 @@ export function RealTimeNotifications({ className = '' }: RealTimeNotificationsP
                     onRemove={removeNotification}
                   />
                 ))}
-              </ScrollArea>
+              </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No notifications yet</p>
-                <p className="text-xs">Real-time updates will appear here</p>
+                <p className="text-sm">No alerts yet</p>
+                <p className="text-xs">
+                  {monitoredDomain
+                    ? 'DNS changes for this domain will appear here'
+                    : 'Analyze a domain to start live monitoring'}
+                </p>
               </div>
             )}
           </div>
         </DropdownMenuContent>
       </DropdownMenu>
-      
-      {/* Manual Controls (for development) */}
-      <div className="flex items-center space-x-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              Controls
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => connectionStatus.connected ? disconnect() : connect()}>
-              {connectionStatus.connected ? 'Disconnect' : 'Connect'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => console.log('WebSocket Stats:', connectionStatus)}>
-              Show Status
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
     </div>
   );
 }

@@ -27,5 +27,11 @@ export {
   type AppState,
 } from './useAppState';
 
+export {
+  useWebSocket,
+  type WebSocketNotification,
+  type ConnectionStatus,
+} from './useWebSocket';
+
 // Re-export common UI hooks
 export { useToast, toast } from './use-toast';
