@@ -5,7 +5,13 @@ import { DnsService } from './dns/DnsService';
 import { RdapService } from './rdap/RdapService';
 import { CacheService } from './cache/CacheService';
 import { snapshotStore } from './cache/SnapshotStore';
+import { entityRelationStore } from './cache/EntityRelationStore';
 import { SecurityAnalysisService } from './security/SecurityAnalysisService';
+import { sslService } from './ssl/SslService';
+import { asnGeoService } from './asn/AsnGeoService';
+import { ctLookupService } from './ct/CtLookupService';
+import { rdapFollowService } from './rdap/RdapFollowService';
+import { webhookDispatcher } from './webhooks/WebhookDispatcher';
 import { 
   DomainAnalysisRequest, 
   DomainAnalysisResponse, 
@@ -134,13 +140,72 @@ export class DomainAnalysisService {
         meta.warnings.push('WHOIS unavailable; using RDAP registration data for WHOIS fields');
       }
 
+      // RDAP link follow (capped)
+      if (response.rdap) {
+        try {
+          const followed = await rdapFollowService.enrich(response.rdap);
+          response.rdap.entities = followed.entities;
+          meta.warnings.push(...followed.warnings);
+        } catch (error) {
+          meta.warnings.push(`RDAP follow skipped: ${(error as Error).message}`);
+        }
+      }
+
+      const wantSsl = request.includeSsl !== false;
+      const wantGeo = request.includeGeo !== false;
+      const wantCt = Boolean(request.includeCt);
+      const wantDkim = request.includeDkim !== false;
+
+      const [sslSettled, dkimSettled] = await Promise.allSettled([
+        wantSsl ? sslService.probe(domain) : Promise.resolve(null),
+        wantDkim ? this.dnsService.discoverDkim(domain) : Promise.resolve([]),
+      ]);
+
+      if (wantSsl) {
+        if (sslSettled.status === 'fulfilled' && sslSettled.value) {
+          response.ssl = sslSettled.value;
+        } else if (sslSettled.status === 'rejected') {
+          meta.warnings.push(`TLS probe failed: ${(sslSettled.reason as Error).message}`);
+        } else if (sslSettled.status === 'fulfilled' && !sslSettled.value) {
+          meta.warnings.push('TLS probe returned no certificate');
+        }
+      }
+
+      if (wantDkim && dkimSettled.status === 'fulfilled') {
+        response.dkim = dkimSettled.value;
+      }
+
+      if (wantGeo && response.dns) {
+        try {
+          const ips = [
+            ...(response.dns.records.A || []).map((r) => r.address),
+            ...(response.dns.records.AAAA || []).map((r) => r.address),
+            ...response.dns.nameservers.map((n) => n.ip).filter(Boolean),
+          ] as string[];
+          response.dns.ipIntelligence = await asnGeoService.lookupIps(ips);
+        } catch (error) {
+          meta.warnings.push(`IP geo/ASN lookup failed: ${(error as Error).message}`);
+        }
+      }
+
+      if (wantCt) {
+        try {
+          const ct = await ctLookupService.lookup(domain, true);
+          if (ct) response.ct = ct;
+          else meta.warnings.push('CT lookup skipped (cooldown, disabled, or empty)');
+        } catch (error) {
+          meta.warnings.push(`CT lookup failed: ${(error as Error).message}`);
+        }
+      }
+
       // Perform security analysis if requested
-      if (request.includeSecurityAnalysis !== false && (response.dns || response.whois || response.rdap)) {
+      if (request.includeSecurityAnalysis !== false && (response.dns || response.whois || response.rdap || response.ssl)) {
         try {
           const securityAnalysis = await this.securityService.analyzeSecurity(domain, {
             whois: response.whois,
             dns: response.dns,
             rdap: response.rdap,
+            ssl: response.ssl,
           });
           response.security = securityAnalysis;
         } catch (error) {
@@ -158,13 +223,31 @@ export class DomainAnalysisService {
         !response.rdap &&
         meta.warnings.some((w) => /RDAP timed out|RDAP lookup failed/i.test(w));
 
-      if ((response.whois || response.rdap || response.dns) && !rdapTransientFailure) {
+      if ((response.whois || response.rdap || response.dns || response.ssl) && !rdapTransientFailure) {
         await this.cacheService.set(cacheKey, response);
-        // Persist compact history snapshot (no-op when Redis is down)
         try {
           await snapshotStore.save(response);
         } catch (error) {
           logger.warn(`Snapshot persist failed for ${domain}:`, error);
+        }
+        try {
+          await entityRelationStore.indexFromAnalysis(response);
+        } catch (error) {
+          logger.warn(`Relation index failed for ${domain}:`, error);
+        }
+        try {
+          await webhookDispatcher.notify({
+            type: 'analysis.completed',
+            domain,
+            payload: {
+              overallScore: response.security?.overallScore,
+              hasSsl: Boolean(response.ssl),
+              fingerprint: response.ssl?.fingerprintSha256,
+            },
+            at: new Date().toISOString(),
+          });
+        } catch {
+          /* ignore webhook errors */
         }
       }
 

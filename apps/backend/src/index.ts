@@ -6,8 +6,6 @@ import { createServer } from 'http';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import { RedisStore } from 'rate-limit-redis';
 import swaggerJSDoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
@@ -17,12 +15,13 @@ import { WhoisService } from '@/services/whois/WhoisService';
 import {
   connectRedis,
   disconnectRedis,
-  getRedisClient,
 } from '@/services/cache/redisClient';
+import { connectGraph, disconnectGraph } from '@/services/graph/GraphClient';
 
 import { errorHandler } from '@/middleware/errorHandler';
 import { notFoundHandler } from '@/middleware/notFoundHandler';
 import { apiKeyAuth } from '@/middleware/apiKeyAuth';
+import { siteVsScriptRateLimit } from '@/middleware/siteRateLimit';
 import { logger } from '@/utils/logger';
 
 import analysisRoutes from '@/routes/analysis';
@@ -32,6 +31,11 @@ import rdapRoutes from '@/routes/rdap';
 import healthRoutes from '@/routes/health';
 import historyRoutes from '@/routes/history';
 import shareRoutes from '@/routes/share';
+import sslRoutes from '@/routes/ssl';
+import relationsRoutes from '@/routes/relations';
+import clientEnvRoutes from '@/routes/clientEnv';
+import entityRoutes from '@/routes/entity';
+import monitoringWatchRoutes from '@/routes/monitoringWatch';
 import monitoringRoutes, { setWebSocketService } from '@/routes/monitoring';
 
 const app: Application = express();
@@ -47,7 +51,7 @@ const swaggerOptions = {
     openapi: '3.0.0',
     info: {
       title: 'DomainPeek API',
-      version: '1.0.3',
+      version: '1.1.0',
       description: 'Comprehensive domain analysis API providing WHOIS, RDAP, DNS, and security insights',
     },
     servers: [
@@ -103,31 +107,9 @@ function setupMiddleware(): void {
     ],
   }));
 
-  const limiterOptions: Parameters<typeof rateLimit>[0] = {
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-    message: {
-      error: 'Too many requests from this IP, please try again later.',
-      code: 'RATE_LIMIT_EXCEEDED',
-    },
-    standardHeaders: true,
-    legacyHeaders: false,
-  };
-
-  const redis = getRedisClient();
-  if (redis?.isOpen) {
-    limiterOptions.store = new RedisStore({
-      sendCommand: (...args: string[]) =>
-        redis.sendCommand(args as [string, ...string[]]),
-      prefix: 'rl:',
-    });
-    logger.info('Express rate limiting using Redis store');
-  } else {
-    logger.info('Express rate limiting using memory store');
-  }
-
-  app.use('/api/', rateLimit(limiterOptions));
+  app.use('/api/', siteVsScriptRateLimit);
   app.use('/api/', apiKeyAuth);
+  logger.info('Express rate limiting using site vs script budgets');
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -150,7 +132,12 @@ function setupMiddleware(): void {
   app.use('/api/rdap', rdapRoutes);
   app.use('/api/history', historyRoutes);
   app.use('/api/share', shareRoutes);
+  app.use('/api/ssl', sslRoutes);
+  app.use('/api/relations', relationsRoutes);
+  app.use('/api/client-env', clientEnvRoutes);
+  app.use('/api/entity', entityRoutes);
   app.use('/api/monitoring', monitoringRoutes);
+  app.use('/api/monitoring', monitoringWatchRoutes);
 
   app.get('/api-docs.json', (req, res) => {
     res.setHeader('Content-Type', 'application/json');
@@ -164,11 +151,15 @@ function setupMiddleware(): void {
   app.get('/', (req, res) => {
     res.json({
       message: 'DomainPeek API',
-      version: '1.0.3',
+      version: '1.1.0',
       docs: '/docs',
       health: '/health',
       history: '/api/history/:domain',
       share: '/api/share',
+      ssl: '/api/ssl/:domain',
+      relations: '/api/relations/:kind/:id',
+      entity: '/api/entity/:type/:id',
+      clientEnv: '/api/client-env',
       websocket: '/api/websocket/stats',
     });
   });
@@ -188,6 +179,12 @@ async function startServer(): Promise<void> {
     }
   } catch (error) {
     logger.warn('Redis connect failed; continuing with memory fallback:', error);
+  }
+
+  try {
+    await connectGraph();
+  } catch (error) {
+    logger.warn('Graph connect failed; Redis relation fallback active:', error);
   }
 
   setupMiddleware();
@@ -217,6 +214,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info(`${signal} signal received: closing HTTP server`);
   server.close(async () => {
     logger.info('HTTP server closed');
+    await disconnectGraph();
     await disconnectRedis();
     process.exit(0);
   });

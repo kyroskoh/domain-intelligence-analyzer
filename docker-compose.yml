@@ -24,9 +24,22 @@ services:
       - REDIS_TTL_SECONDS=${REDIS_TTL_SECONDS:-3600}
       - SNAPSHOT_TTL_SECONDS=${SNAPSHOT_TTL_SECONDS:-2592000}
       - SHARE_TTL_SECONDS=${SHARE_TTL_SECONDS:-604800}
-      # Rate limiting
+      # Memgraph (profile: graph or default)
+      - GRAPH_BOLT_URL=${GRAPH_BOLT_URL:-bolt://memgraph:7687}
+      - GRAPH_ENABLED=${GRAPH_ENABLED:-true}
+      - GRAPH_USER=${GRAPH_USER:-}
+      - GRAPH_PASSWORD=${GRAPH_PASSWORD:-}
+      # Rate limiting (site vs script)
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
+      - RATE_LIMIT_SITE_MAX=${RATE_LIMIT_SITE_MAX:-120}
+      - RATE_LIMIT_SCRIPT_MAX=${RATE_LIMIT_SCRIPT_MAX:-20}
+      - IP_GEO_ENABLED=${IP_GEO_ENABLED:-true}
+      - IP_GEO_PROVIDER=${IP_GEO_PROVIDER:-both}
+      - HE_BGP_ENABLED=${HE_BGP_ENABLED:-true}
+      - CT_LOOKUP_ENABLED=${CT_LOOKUP_ENABLED:-false}
+      - WEBHOOK_URL=${WEBHOOK_URL:-}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-}
       # Lookup timeouts (ms) — RDAP registries can be slow from some VPS networks
       - WHOIS_TIMEOUT_MS=${WHOIS_TIMEOUT_MS:-10000}
       - RDAP_TIMEOUT_MS=${RDAP_TIMEOUT_MS:-25000}
@@ -40,6 +53,9 @@ services:
       - DNS_API_KEY=${DNS_API_KEY:-}
     depends_on:
       redis:
+        condition: service_healthy
+        required: false
+      memgraph:
         condition: service_healthy
         required: false
     healthcheck:
@@ -135,6 +151,32 @@ services:
       - redis
       - default
 
+  # Memgraph graph DB — opt-in via profile: graph | default (Bolt :7687)
+  memgraph:
+    image: memgraph/memgraph:2.22.1
+    container_name: domain-analyzer-memgraph
+    restart: unless-stopped
+    ports:
+      - "7687:7687"
+    volumes:
+      - memgraph-data:/var/lib/memgraph
+    command: ["--log-level=WARNING"]
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'RETURN 0;' | mgconsole --host 127.0.0.1 --port 7687 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 25s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    profiles:
+      - graph
+      - default
+
   # Nginx reverse proxy — opt-in via profile: nginx | default (Certbot + Cloudflare DNS-01)
   nginx:
     build:
@@ -186,5 +228,7 @@ volumes:
     name: domain-analyzer-backend-logs
   redis-data:
     name: domain-analyzer-redis-data
+  memgraph-data:
+    name: domain-analyzer-memgraph-data
   letsencrypt:
     name: domain-analyzer-letsencrypt

@@ -17,6 +17,24 @@ export interface DomainAnalysisOptions {
   includeSecurityAnalysis?: boolean;
 }
 
+export interface SslCertificateData {
+  subject: string;
+  issuer: string;
+  subjectCn?: string;
+  sans: string[];
+  sanCount: number;
+  fingerprintSha256: string;
+  serial?: string;
+  validFrom: string;
+  validTo: string;
+  daysRemaining: number;
+  handshakeMs?: number;
+  protocol?: string;
+  cipher?: string;
+  isCloudflareOriginCa?: boolean;
+  hostnameMatch?: boolean;
+}
+
 export interface DomainAnalysisResponse {
   domain: string;
   analyzedAt: string;
@@ -24,6 +42,9 @@ export interface DomainAnalysisResponse {
   whois?: WhoisData;
   rdap?: RdapData;
   dns?: DnsData;
+  ssl?: SslCertificateData;
+  dkim?: Array<{ selector: string; valid: boolean; keyType?: string }>;
+  ct?: { ctSans: string[]; historical?: boolean };
   security?: SecurityAnalysis;
 }
 
@@ -129,6 +150,20 @@ export interface DsRecord {
   digestType: number;
 }
 
+export interface IpIntelligence {
+  ip: string;
+  asn?: number;
+  asOrg?: string;
+  country?: string;
+  city?: string;
+  isp?: string;
+  prefixes?: string[];
+  coveringPrefix?: string;
+  prefixMatch?: boolean;
+  asnMismatch?: boolean;
+  heUrl?: string;
+}
+
 export interface DnsData {
   domain: string;
   records: {
@@ -156,6 +191,7 @@ export interface DnsData {
   nameservers: NameserverInfo[];
   nameserverHealth?: NameserverInfo[]; // Alias
   dnssec: DnssecInfo;
+  ipIntelligence?: IpIntelligence[];
   propagationStatus?: any; // For future use
 }
 
@@ -320,8 +356,20 @@ export interface AnalysisSnapshot {
   hasWhois: boolean;
   hasRdap: boolean;
   hasDns: boolean;
+  hasSsl?: boolean;
   durationMs?: number;
   security?: Pick<SecurityAnalysis, 'overallScore' | 'breakdown' | 'risks'>;
+  registrar?: { name: string; url?: string; ianaId?: string };
+  nameservers?: string[];
+  entities?: { handle?: string; roles?: string[]; org?: string }[];
+  ssl?: {
+    fingerprintSha256: string;
+    issuer: string;
+    sans: string[];
+    isCloudflareOriginCa?: boolean;
+    validTo?: string;
+  };
+  asnSummary?: { asn: number; asOrg?: string }[];
 }
 
 export interface HistoryResponse {
@@ -516,6 +564,58 @@ class ApiClient {
     const response = await this.client.get<ShareResolveResponse>(
       `/api/share/${encodeURIComponent(token)}`
     );
+    return response.data;
+  }
+
+  async getSsl(domain: string, includeCt = false): Promise<{
+    domain: string;
+    ssl: SslCertificateData | null;
+    ct?: { ctSans: string[] };
+  }> {
+    const response = await this.client.get(
+      `/api/ssl/${encodeURIComponent(domain)}`,
+      { params: includeCt ? { includeCt: '1' } : undefined }
+    );
+    return response.data;
+  }
+
+  async getRelations(
+    kind: string,
+    id: string,
+    limit = 50
+  ): Promise<{ domains: string[]; source: string; disclaimer?: string }> {
+    const response = await this.client.get(
+      `/api/relations/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`,
+      { params: { limit } }
+    );
+    return response.data;
+  }
+
+  async getEntity(
+    type: string,
+    id: string
+  ): Promise<{
+    type: string;
+    id: string;
+    relatedDomains: string[];
+    source: string;
+    disclaimer?: string;
+  }> {
+    const response = await this.client.get(
+      `/api/entity/${encodeURIComponent(type)}/${encodeURIComponent(id)}`
+    );
+    return response.data;
+  }
+
+  async getClientEnv(): Promise<{
+    ip: string;
+    asn?: number;
+    asOrg?: string;
+    country?: string;
+    city?: string;
+    isp?: string;
+  }> {
+    const response = await this.client.get('/api/client-env');
     return response.data;
   }
 }

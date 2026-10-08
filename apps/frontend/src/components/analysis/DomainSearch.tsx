@@ -50,11 +50,42 @@ export default function DomainSearch({
   const [inputValue, setInputValue] = useState(domain);
   const [showHistory, setShowHistory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const autoAnalyzedRef = React.useRef<string | null>(null);
 
   // Sync input with domain state
   useEffect(() => {
     setInputValue(domain);
   }, [domain]);
+
+  const runAnalyze = async (target: string) => {
+    setIsSubmitting(true);
+    try {
+      await analyzeDomainMutation.mutateAsync({
+        domain: target,
+        options: {
+          includeWhois: true,
+          includeRdap: true,
+          includeDns: true,
+          includeSecurityAnalysis: true,
+        },
+      });
+      onDomainAnalyzed?.(target);
+      setShowHistory(false);
+    } catch (error) {
+      console.error('Domain analysis failed:', error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Auto-analyze when domain is hydrated from ?domain=
+  useEffect(() => {
+    if (!domain || !isValidDomain) return;
+    if (autoAnalyzedRef.current === domain) return;
+    autoAnalyzedRef.current = domain;
+    void runAnalyze(domain);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domain, isValidDomain]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,26 +95,7 @@ export default function DomainSearch({
     const success = searchDomain(inputValue.trim());
     if (!success) return;
 
-    setIsSubmitting(true);
-    
-    try {
-      await analyzeDomainMutation.mutateAsync({
-        domain: inputValue.trim().toLowerCase(),
-        options: {
-          includeWhois: true,
-          includeRdap: true,
-          includeDns: true,
-          includeSecurityAnalysis: true,
-        },
-      });
-      
-      onDomainAnalyzed?.(inputValue.trim().toLowerCase());
-      setShowHistory(false);
-    } catch (error) {
-      console.error('Domain analysis failed:', error);
-    } finally {
-      setIsSubmitting(false);
-    }
+    await runAnalyze(inputValue.trim().toLowerCase());
   };
 
   const handleInputChange = (value: string) => {

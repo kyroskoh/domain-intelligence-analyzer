@@ -160,7 +160,7 @@ export class RdapService {
         timeout: Math.max(this.timeout, 15000),
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'DomainPeek/1.0.3',
+          'User-Agent': 'DomainPeek/1.1.0',
         },
       });
 
@@ -230,7 +230,7 @@ export class RdapService {
         timeout: this.timeout,
         headers: {
           Accept: 'application/rdap+json, application/json',
-          'User-Agent': 'DomainPeek/1.0.3',
+          'User-Agent': 'DomainPeek/1.1.0',
         },
         validateStatus: (status) => status >= 200 && status < 300,
       });

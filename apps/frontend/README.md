@@ -1,6 +1,6 @@
 # DomainPeek Frontend
 
-Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS panels (single `/api/analyze` fetch), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
+Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS/TLS panels (single `/api/analyze` fetch), entity deep links (`/entity/...`), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
 
 **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
 
@@ -29,8 +29,10 @@ Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend).
 
 ## Useful routes
 
-- `/` — main domain analysis UI (includes live notification bell)
-- `/test-charts` — chart/theme sandbox
+- `/` — main domain analysis UI (includes live notification bell; hydrates `?domain=` / `focus` / `id`)
+- `/entity/[type]/[id]` — relation pages (ns, registrar, cert, asn, prefix, rdap, san)
+- `/share/[token]` — server-backed shared analysis snapshot
+- `/test-charts` — chart/theme sandbox (synthetic fixtures only)
 - `/api/health` — frontend health proxy toward the backend (`INTERNAL_API_URL` in Docker)
 
 ## Related docs

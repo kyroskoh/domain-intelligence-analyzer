@@ -255,12 +255,94 @@ export class DnsService {
   }
 
   /**
-   * Lookup SRV records (placeholder - Node.js doesn't have built-in SRV support)
+   * Lookup common SRV service records for the domain
    */
   private async lookupSRV(domain: string): Promise<SRVRecord[]> {
-    // TODO: Implement SRV lookup using dns-socket or similar library
-    logger.debug(`SRV record lookup not implemented for ${domain}`);
-    return [];
+    const services = [
+      `_sip._tcp.${domain}`,
+      `_sip._udp.${domain}`,
+      `_xmpp-server._tcp.${domain}`,
+      `_xmpp-client._tcp.${domain}`,
+      `_caldav._tcp.${domain}`,
+      `_carddav._tcp.${domain}`,
+      `_autodiscover._tcp.${domain}`,
+      `_submission._tcp.${domain}`,
+      `_imaps._tcp.${domain}`,
+      `_pop3s._tcp.${domain}`,
+    ];
+
+    const results: SRVRecord[] = [];
+    await Promise.all(
+      services.map(async (name) => {
+        try {
+          const records = await dns.resolveSrv(name);
+          for (const record of records) {
+            results.push({
+              name,
+              type: 'SRV' as const,
+              ttl: 0,
+              class: 'IN',
+              priority: record.priority,
+              weight: record.weight,
+              port: record.port,
+              target: record.name,
+            });
+          }
+        } catch {
+          /* no SRV for this service */
+        }
+      })
+    );
+    return results;
+  }
+
+  /**
+   * Probe common DKIM selectors (bounded).
+   */
+  async discoverDkim(domain: string): Promise<
+    Array<{ selector: string; record?: string; valid: boolean; keyType?: string }>
+  > {
+    const selectors = [
+      'default',
+      'google',
+      'selector1',
+      'selector2',
+      'k1',
+      'k2',
+      's1',
+      's2',
+      'dkim',
+      'mail',
+      'email',
+      'mx',
+      'smtp',
+    ];
+    const found: Array<{
+      selector: string;
+      record?: string;
+      valid: boolean;
+      keyType?: string;
+    }> = [];
+
+    for (const selector of selectors) {
+      const name = `${selector}._domainkey.${domain}`;
+      try {
+        const txts = await dns.resolveTxt(name);
+        const flat = txts.map((p) => p.join('')).join('');
+        if (/v=DKIM1/i.test(flat) || /p=/i.test(flat)) {
+          const keyType = flat.match(/k=([a-z0-9]+)/i)?.[1];
+          found.push({
+            selector,
+            record: flat.slice(0, 500),
+            valid: /p=[A-Za-z0-9+/=]+/.test(flat),
+            keyType,
+          });
+        }
+      } catch {
+        /* selector absent */
+      }
+    }
+    return found;
   }
 
   /**
@@ -325,16 +407,51 @@ export class DnsService {
   }
 
   /**
-   * Check DNSSEC status
+   * Check DNSSEC via DS / DNSKEY lookups (presence-based; not a full chain validator).
    */
   private async checkDnssec(domain: string): Promise<DnssecInfo> {
-    // TODO: Implement proper DNSSEC checking using dns-socket or dig
-    // For now, return basic structure
+    const algorithms: number[] = [];
+    const dsRecords: DnssecInfo['dsRecords'] = [];
+
+    try {
+      const ds = (await dns.resolve(domain, 'DS')) as Array<{
+        keyTag?: number;
+        algorithm?: number;
+        digestType?: number;
+        digest?: string;
+      }>;
+      for (const r of ds || []) {
+        if (r.algorithm != null) algorithms.push(r.algorithm);
+        if (r.keyTag != null && r.digest) {
+          dsRecords!.push({
+            keyTag: r.keyTag,
+            algorithm: r.algorithm || 0,
+            digestType: r.digestType || 0,
+            digest: r.digest,
+          });
+        }
+      }
+    } catch {
+      /* no DS */
+    }
+
+    let hasDnskey = false;
+    try {
+      const keys = (await dns.resolve(domain, 'DNSKEY')) as Array<{ algorithm?: number }>;
+      hasDnskey = Array.isArray(keys) && keys.length > 0;
+      for (const k of keys || []) {
+        if (k.algorithm != null) algorithms.push(k.algorithm);
+      }
+    } catch {
+      /* no DNSKEY */
+    }
+
+    const enabled = (dsRecords?.length || 0) > 0 || hasDnskey;
     return {
-      enabled: false,
-      valid: undefined,
-      algorithms: [],
-      dsRecords: [],
+      enabled,
+      valid: enabled ? true : undefined,
+      algorithms: Array.from(new Set(algorithms)),
+      dsRecords,
     };
   }
 

@@ -30,6 +30,7 @@ import WhoisPanel from './WhoisPanel';
 import RdapPanel from './RdapPanel';
 import DnsPanel from './DnsPanel';
 import SecurityPanel from './SecurityPanel';
+import SslPanel from './SslPanel';
 import DateTimezoneToggle from './DateTimezoneToggle';
 import DomainVisualization from '../visualizations/DomainVisualization';
 import { ExportPanel } from '@/components/ExportPanel';
@@ -306,6 +307,10 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               isLoading={isLoading} 
               compact 
             />
+            <SslPanel
+              data={domainAnalysis.data?.ssl}
+              ctSans={domainAnalysis.data?.ct?.ctSans}
+            />
           </div>
         </TabsContent>
 
@@ -341,6 +346,12 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                 warnings={dnsWarnings}
               />
             </div>
+            <div id="ssl-section">
+              <SslPanel
+                data={domainAnalysis.data?.ssl}
+                ctSans={domainAnalysis.data?.ct?.ctSans}
+              />
+            </div>
             <div id="security-section">
               <SecurityPanel 
                 data={domainAnalysis.data?.security} 
@@ -356,7 +367,8 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             whoisData={resolvedWhois}
             dnsData={resolvedDns}
             rdapData={resolvedRdap}
-            securityData={domainAnalysis.data?.security}
+            sslData={domainAnalysis.data?.ssl}
+            securityData={domainAnalysis.data?.security as any}
           />
         </TabsContent>
 

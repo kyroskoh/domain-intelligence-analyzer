@@ -60,8 +60,9 @@ OPTIONS:
     -p, --profile       Compose profile (repeatable or comma-separated):
                           nginx   — reverse proxy (+ TLS helpers)
                           redis   — Redis cache / rate-limit / snapshots / share
-                          default — nginx + redis together
-                        Examples: -p nginx  |  -p redis  |  -p default
+                          graph   — Memgraph relation graph (Bolt :7687)
+                          default — nginx + redis + memgraph together
+                        Examples: -p nginx  |  -p redis  |  -p graph  |  -p default
                                   -p nginx -p redis  |  -p nginx,redis
     -r, --rebuild, --no-cache
                         Force cold rebuild (DOCKER_BUILD_NO_CACHE=true)

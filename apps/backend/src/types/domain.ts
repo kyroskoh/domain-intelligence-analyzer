@@ -6,6 +6,10 @@ export interface DomainAnalysisRequest {
   includeRdap?: boolean;
   includeDns?: boolean;
   includeSecurityAnalysis?: boolean;
+  includeSsl?: boolean;
+  includeGeo?: boolean;
+  includeCt?: boolean;
+  includeDkim?: boolean;
 }
 
 export interface DomainAnalysisResponse {
@@ -15,7 +19,11 @@ export interface DomainAnalysisResponse {
   whois?: WhoisData;
   rdap?: RdapData;
   dns?: DnsData;
+  ssl?: SslCertificateData;
+  ct?: CtLookupResult;
+  dkim?: DkimRecord[];
   security?: SecurityAnalysis;
+  clientEnv?: ClientEnvInfo;
 }
 
 export interface AnalysisMeta {
@@ -73,6 +81,7 @@ export interface RdapData {
   registrar?: {
     name: string;
     url?: string;
+    ianaId?: string;
   };
   status: string[];
   events: RdapEvent[];
@@ -84,6 +93,56 @@ export interface RdapData {
   };
   rdapConformance?: string[]; // RDAP conformance levels
   raw: any;
+}
+
+export interface SslCertificateData {
+  subject: string;
+  issuer: string;
+  subjectCn?: string;
+  sans: string[];
+  sanCount: number;
+  fingerprintSha256: string;
+  serial?: string;
+  validFrom: string;
+  validTo: string;
+  daysRemaining: number;
+  handshakeMs?: number;
+  protocol?: string;
+  cipher?: string;
+  isCloudflareOriginCa?: boolean;
+  hostnameMatch?: boolean;
+}
+
+export interface IpIntelligence {
+  ip: string;
+  asn?: number;
+  asOrg?: string;
+  country?: string;
+  city?: string;
+  isp?: string;
+  prefixes?: string[];
+  coveringPrefix?: string;
+  prefixMatch?: boolean;
+  asnMismatch?: boolean;
+  heUrl?: string;
+  sources?: string[];
+}
+
+export interface CtLookupResult {
+  domain: string;
+  ctSans: string[];
+  source: 'crt.sh';
+  fetchedAt: string;
+  historical: boolean;
+}
+
+export interface ClientEnvInfo {
+  ip: string;
+  asn?: number;
+  asOrg?: string;
+  country?: string;
+  city?: string;
+  isp?: string;
 }
 
 export interface RdapLink {
@@ -144,6 +203,7 @@ export interface DnsData {
   };
   nameservers: NameserverInfo[];
   dnssec: DnssecInfo;
+  ipIntelligence?: IpIntelligence[];
 }
 
 export interface BaseRecord {

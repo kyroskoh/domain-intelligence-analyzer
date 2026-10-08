@@ -359,7 +359,24 @@ export function exportToPDF(data: ExportData): void {
         }
       });
     }
+    if (data.dns.ipIntelligence?.length) {
+      dnsInfo['ASN / Geo'] = data.dns.ipIntelligence
+        .slice(0, 5)
+        .map((i: any) => `${i.ip} AS${i.asn || '?'} ${i.coveringPrefix || ''}`.trim())
+        .join('; ');
+    }
     addSection('DNS Information', dnsInfo);
+  }
+
+  if ((data as any).ssl) {
+    const ssl = (data as any).ssl;
+    addSection('TLS Certificate', {
+      Issuer: ssl.issuer,
+      Fingerprint: ssl.fingerprintSha256,
+      SANs: (ssl.sans || []).slice(0, 15).join(', '),
+      ValidTo: ssl.validTo,
+      OriginCA: ssl.isCloudflareOriginCa ? 'yes' : 'no',
+    });
   }
 
   // Security Section

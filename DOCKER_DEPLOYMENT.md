@@ -1,12 +1,12 @@
 # Docker Deployment Guide
 
-This document provides comprehensive instructions for deploying DomainPeek using Docker and Docker Compose.
+This document provides comprehensive instructions for deploying DomainPeek **1.1.0** using Docker and Docker Compose (nginx, Redis, and optional Memgraph for entity relations).
 
 ## Prerequisites
 
 - Docker Engine 20.10+ with the Compose V2 plugin (`docker compose`)
 - Node.js 22 LTS (container base image: `node:22-alpine`)
-- At least 2GB RAM available for containers
+- At least 2GB RAM available for containers (add ~512MB when using the Memgraph `graph` / `default` profile)
 - 5GB disk space for images and data
 - `sudo` access on the host (only if Docker needs to be installed)
 
@@ -201,6 +201,8 @@ With the `nginx` or `default` profile, open the app on port **80** (`http://YOUR
 ### Optional Services (profiles)
 
 3. **Redis** (`redis`) — profiles: `redis`, `default`
+
+3b. **Memgraph** (`memgraph`) — profiles: `graph`, `default` — Bolt `7687`, env `GRAPH_BOLT_URL=bolt://memgraph:7687`. Without the graph profile, relation APIs fall back to Redis.
    - Persistent cache (`appendonly yes`, volume `redis-data`)
    - Port: 6379
    - Backend uses memory fallback when Redis is not started

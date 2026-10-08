@@ -42,6 +42,7 @@ interface DomainVisualizationProps {
   whoisData?: any;
   dnsData?: any;
   rdapData?: any;
+  sslData?: any;
   securityData?: SecurityAnalysis;
   className?: string;
 }
@@ -51,6 +52,7 @@ export default function DomainVisualization({
   whoisData,
   dnsData,
   rdapData,
+  sslData,
   securityData,
   className = ''
 }: DomainVisualizationProps) {
@@ -272,8 +274,15 @@ export default function DomainVisualization({
 
             {/* Performance Analytics Tab */}
             <TabsContent value="performance" className="space-y-6">
-              <PerformanceAnalytics 
+              <PerformanceAnalytics
                 domain={domain}
+                dnsData={dnsData}
+                sslData={sslData}
+                sslSecurityScore={
+                  securityData?.breakdown?.find((b) =>
+                    /tls|certificate|ssl/i.test(b.category)
+                  )?.score
+                }
               />
             </TabsContent>
           </Tabs>

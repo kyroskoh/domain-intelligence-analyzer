@@ -1,6 +1,6 @@
 {
   "name": "@domainpeek/backend",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "DomainPeek Backend API - Express server with WHOIS/RDAP/DNS analysis, Redis caching, and comprehensive security scoring",
   "main": "dist/index.js",
   "scripts": {
@@ -27,6 +27,7 @@
     "joi": "^17.13.8",
     "module-alias": "^2.2.3",
     "morgan": "^1.10.0",
+    "neo4j-driver": "^5.28.1",
     "node-cache": "^5.1.2",
     "rate-limit-redis": "^4.3.1",
     "redis": "^5.8.2",

@@ -1,5 +1,5 @@
 import { logger } from '@/utils/logger';
-import { WhoisData, DnsData, RdapData } from '@/types/domain';
+import { WhoisData, DnsData, RdapData, SslCertificateData } from '@/types/domain';
 
 export interface SecurityScore {
   overallScore: number; // 0-100
@@ -56,6 +56,7 @@ export class SecurityAnalysisService {
     whois?: WhoisData;
     dns?: DnsData;
     rdap?: RdapData;
+    ssl?: SslCertificateData | null;
   }): Promise<SecurityScore> {
     logger.info(`Starting security analysis for ${domain}`);
 
@@ -79,6 +80,10 @@ export class SecurityAnalysisService {
     if (data.rdap) {
       const rdapCategory = await this.analyzeRdapSecurity(domain, data.rdap);
       breakdown.push(rdapCategory);
+    }
+
+    if (data.ssl) {
+      breakdown.push(this.analyzeSslSecurity(data.ssl));
     }
 
     // Calculate overall score
@@ -130,9 +135,11 @@ export class SecurityAnalysisService {
     checks.push({
       name: 'DNSSEC',
       status: dns.dnssec?.enabled ? 'pass' : 'fail',
-      score: dns.dnssec?.enabled ? 100 : 0,
-      description: 'Domain Name System Security Extensions validation',
-      details: dns.dnssec?.enabled ? 'DNSSEC is properly configured' : 'DNSSEC is not enabled'
+      score: dns.dnssec?.enabled ? (dns.dnssec?.valid === false ? 70 : 100) : 40,
+      description: 'DNS Security Extensions (DS/DNSKEY present)',
+      details: dns.dnssec?.enabled
+        ? `DNSSEC records present${dns.dnssec?.valid === false ? ' (validation inconclusive)' : ''}`
+        : 'No DS/DNSKEY records detected',
     });
 
     // SPF record validation
@@ -293,6 +300,43 @@ export class SecurityAnalysisService {
       score: categoryScore,
       weight: 0.3, // 30% of total score
       description: 'Domain registration and ownership security',
+      checks,
+    };
+  }
+
+  private analyzeSslSecurity(ssl: SslCertificateData): SecurityCategory {
+    const checks: SecurityCheck[] = [];
+
+    checks.push({
+      name: 'Certificate Validity',
+      status: ssl.daysRemaining > 14 ? 'pass' : ssl.daysRemaining > 0 ? 'warn' : 'fail',
+      score: ssl.daysRemaining > 30 ? 100 : ssl.daysRemaining > 14 ? 80 : ssl.daysRemaining > 0 ? 40 : 0,
+      description: 'Leaf certificate expiry window',
+      details: `Expires in ${ssl.daysRemaining} day(s) (${ssl.validTo})`,
+    });
+
+    checks.push({
+      name: 'Hostname Match',
+      status: ssl.hostnameMatch ? 'pass' : 'fail',
+      score: ssl.hostnameMatch ? 100 : 0,
+      description: 'Certificate CN/SAN covers analyzed hostname',
+      details: ssl.hostnameMatch ? 'Hostname matches certificate' : 'Hostname not in CN/SAN',
+    });
+
+    checks.push({
+      name: 'Handshake',
+      status: (ssl.handshakeMs ?? 9999) < 2000 ? 'pass' : 'warn',
+      score: (ssl.handshakeMs ?? 9999) < 2000 ? 100 : 60,
+      description: 'TLS handshake completed',
+      details: ssl.handshakeMs != null ? `${ssl.handshakeMs}ms · ${ssl.protocol || 'TLS'}` : 'n/a',
+    });
+
+    const categoryScore = this.calculateCategoryScore(checks);
+    return {
+      category: 'TLS Certificate',
+      score: categoryScore,
+      weight: 0.25,
+      description: 'Live TLS certificate probe',
       checks,
     };
   }

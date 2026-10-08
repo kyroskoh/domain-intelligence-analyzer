@@ -151,6 +151,63 @@ export default function SharePage() {
                 </div>
               )}
 
+              {(snapshot.registrar ||
+                snapshot.nameservers?.length ||
+                snapshot.ssl ||
+                snapshot.asnSummary?.length) && (
+                <div className="space-y-2 text-sm">
+                  <div className="font-medium">Infrastructure</div>
+                  {snapshot.registrar && (
+                    <div>
+                      Registrar:{' '}
+                      <Link
+                        href={`/entity/registrar/${encodeURIComponent(snapshot.registrar.ianaId || snapshot.registrar.name)}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {snapshot.registrar.name}
+                      </Link>
+                    </div>
+                  )}
+                  {snapshot.nameservers && snapshot.nameservers.length > 0 && (
+                    <ul className="space-y-1">
+                      {snapshot.nameservers.map((ns) => (
+                        <li key={ns}>
+                          <Link
+                            href={`/entity/ns/${encodeURIComponent(ns)}`}
+                            className="font-mono text-xs underline-offset-4 hover:underline"
+                          >
+                            {ns}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {snapshot.ssl && (
+                    <div>
+                      Cert:{' '}
+                      <Link
+                        href={`/entity/cert/${encodeURIComponent(snapshot.ssl.fingerprintSha256)}`}
+                        className="font-mono text-xs underline-offset-4 hover:underline"
+                      >
+                        {snapshot.ssl.fingerprintSha256.slice(0, 16)}…
+                      </Link>
+                      {snapshot.ssl.isCloudflareOriginCa ? ' · Origin CA' : ''}
+                    </div>
+                  )}
+                  {snapshot.asnSummary?.map((a) => (
+                    <div key={a.asn}>
+                      <Link
+                        href={`/entity/asn/${a.asn}`}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        AS{a.asn}
+                      </Link>
+                      {a.asOrg ? ` · ${a.asOrg}` : ''}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <Button asChild className="w-full">
                 <Link href={`/?domain=${encodeURIComponent(snapshot.domain)}`}>
                   Analyze {snapshot.domain} again

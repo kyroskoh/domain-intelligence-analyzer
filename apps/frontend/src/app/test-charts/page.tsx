@@ -12,7 +12,10 @@ import { PerformanceAnalytics } from '@/components/visualizations/PerformanceAna
 import { Badge } from '@/components/ui/badge';
 import { useTheme } from 'next-themes';
 
-// Mock data for testing
+/**
+ * Chart sandbox — synthetic fixture data for layout/theme testing only.
+ * Not product analytics. Production UI uses measured analysis results only.
+ */
 const mockSecurityData = {
   overallScore: 75,
   riskLevel: 'medium' as const,
@@ -130,10 +133,10 @@ export default function TestChartsPage() {
           </CardContent>
         </Card>
 
-        {/* Performance Analytics */}
+        {/* Performance Analytics (sandbox fixtures — not live metrics) */}
         <Card>
           <CardHeader>
-            <CardTitle>Performance Analytics</CardTitle>
+            <CardTitle>Performance Analytics (sandbox)</CardTitle>
             <CardDescription>Response time trends</CardDescription>
           </CardHeader>
           <CardContent>

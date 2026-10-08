@@ -1,8 +1,8 @@
 # DomainPeek
 
-A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
+A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, TLS certificate probing, ASN/BGP intelligence, entity deep links, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
-**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+**Version:** 1.1.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
 
 ## 🚀 Features
 
@@ -10,14 +10,16 @@ A production-grade web application that provides comprehensive domain analysis i
 - **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Entity jCards are flattened (`fn` / `org` / `email` / `tel` / `addr`) so contacts render correctly; top-level `ldhName`, `unicodeName`, `port43`, `links`, and `secureDNS`/DS records are exposed in the UI. Dates display as **DD/MMM/YYYY** (plus **HH:MM:SS** when the source includes a real time) in UTC by default, with a toggle for your local timezone.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
-- **ASN & IP Intelligence**: Autonomous System Number and IP geolocation (planned — Phase 3)
-- **User Environment Detection**: Client public IP / ISP display (planned — Phase 3)
+- **ASN & IP Intelligence**: ip-api.com + bgp.he.net prefix checks (backend-only, Redis-cached, throttled)
+- **User Environment Detection**: Client public IP / ISP via `/api/client-env` (backend geo only)
+- **TLS / SAN deep links**: Live certificate probe, SAN analyze-links, Cloudflare Origin CA heuristics, optional CT (crt.sh)
+- **Entity graph**: Memgraph (Docker) + Redis relation index; `/entity/...` and `/api/relations/*`
 
 ### Security & Best Practices
 - **Security Scoring Engine**: Weighted scoring system (0-100) based on domain configuration
 - **DNSSEC Validation**: Check for DNS Security Extensions implementation
-- **Email Security Analysis**: SPF and DMARC validation today; DKIM selector discovery planned (Phase 3)
-- **SSL/TLS Integration**: Certificate analysis (planned integration with SSL Analyzer)
+- **Email Security Analysis**: SPF, DMARC, and common DKIM selector discovery
+- **SSL/TLS Integration**: Live leaf-certificate probe (SANs, fingerprint, Origin CA heuristics) with security scoring
 - **Best Practice Recommendations**: Actionable insights for domain optimization
 
 ### Interactive Visualizations
@@ -35,9 +37,9 @@ A production-grade web application that provides comprehensive domain analysis i
 ### Export & Sharing
 - **Multiple Export Formats**: JSON, CSV, and PDF reports — CSV/PDF include RDAP (entities, events, DNSSEC, links) with the same DD/MMM/YYYY date formatting as the UI
 - **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards
-- **Share Links**: Copy a search URL today; server-backed temporary shareable analysis links planned (Phase 3)
-- **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production)
-- **Webhook Integration**: Planned for Phase 3 (custom alerting)
+- **Share Links**: Server-backed temporary shareable analysis snapshots (`/share/[token]`) plus `?domain=` deep links
+- **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production); site vs script rate budgets
+- **Webhook Integration**: Outbound webhooks + entity watchlists (`/api/monitoring/watch`)
 
 ## 🏗️ Architecture
 
@@ -136,19 +138,21 @@ git clone https://github.com/kyroskoh/domain-intelligence-analyzer.git
 cd domain-intelligence-analyzer
 
 # Recommended (production): Nginx + Redis, API key, pull base images, auto cache
-# Installs Docker if missing. Equivalent profiles: -p nginx -p redis
+# Installs Docker if missing. Equivalent profiles: -p nginx -p redis -p graph
 ./deploy.sh -p default -k -u
 
 # Core only (frontend + backend), or other profiles
 ./deploy.sh
 ./deploy.sh -p redis
+./deploy.sh -p graph
 ./deploy.sh -p nginx -k
 
 # Or manage Compose directly
 docker compose up --build                              # core only
 docker compose --profile redis up --build              # + Redis
+docker compose --profile graph up --build              # + Memgraph
 docker compose --profile nginx up --build              # + Nginx
-docker compose --profile default up --build            # + Nginx + Redis
+docker compose --profile default up --build            # + Nginx + Redis + Memgraph
 ```
 
 **Development with Docker:**
@@ -165,10 +169,11 @@ docker compose down
 # View logs
 docker compose logs -f
 
-# Optional profiles: redis | nginx | default (nginx + redis)
+# Optional profiles: redis | nginx | graph | default (nginx + redis + memgraph)
 mkdir -p ssl
 ./deploy.sh -p default -k -u         # recommended production stack
 ./deploy.sh -p redis                 # cache / rate-limit / snapshots / share
+./deploy.sh -p graph                 # Memgraph relation graph (Bolt :7687)
 ./deploy.sh -p nginx -k              # reverse proxy
 ```
 
@@ -187,6 +192,7 @@ See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md#sslhttps-setup) for full TLS s
 - Frontend: `http://localhost:4000`
 - Backend API: `http://localhost:4001`
 - Redis: `localhost:6379` (with `-p redis` or `-p default`)
+- Memgraph: Bolt `localhost:7687` (with `-p graph` or `-p default`; Redis relation fallback if omitted)
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
 - With nginx / default profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
@@ -503,7 +509,7 @@ services:
 
 **Key Docker Features:**
 - **Node.js 22 LTS**: Frontend and backend images use `node:22-alpine`
-- **Optional profiles**: `redis` (cache / rate-limit / snapshots / share), `nginx` (reverse proxy), `default` (nginx + redis); core stack is frontend + backend; `./deploy.sh` autofills Redis env when missing
+- **Optional profiles**: `redis` (cache / rate-limit / snapshots / share), `graph` (Memgraph), `nginx` (reverse proxy), `default` (nginx + redis + memgraph); core stack is frontend + backend; `./deploy.sh` autofills Redis env when missing; set `GRAPH_BOLT_URL` / `GRAPH_ENABLED` for the graph service
 - **Smart build cache**: `./deploy.sh` auto no-cache on Dockerfile/lockfile/compose changes; cached rebuild for source/`NEXT_PUBLIC_*`; override with `-r`/`--no-cache` or `-c`/`--cache` (`-u` pulls base images)
 - **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
 - **Health Checks**: Custom Node.js-based health checks for better reliability
@@ -608,28 +614,64 @@ The application is designed to be deployed on:
 - [x] Fix WHOIS expiry badge for invalid dates; format registrant contact objects
 - [x] Export CSV/PDF include RDAP; align date formatting with UI
 - [x] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
-- [ ] Real DNSSEC check + SRV lookup in DNS service
+- [x] Real DNSSEC check + SRV lookup in DNS service
 - [x] Health checks: real Redis ping
-- [ ] Health checks: WHOIS service probe
+- [x] Health checks: WHOIS service probe (port43 TCP to whois.iana.org)
 - [x] Wire Redis store for Express rate limiting (enable with `-p redis` or `-p default`)
 - [x] Trim CORS origin list entries
-- [ ] Frontend unit tests (date utils / enrichment); fix `npm run test:frontend`
-- [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
+- [x] Frontend unit tests for entity deep-link helpers
+- [x] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
 - [x] Surface `secureDNS` / DS records in RDAP UI
 - [x] Consistent `meta.warnings` on compact analysis cards
 - [x] Harden RDAP timeouts (25s default, no same-server retry, skip caching transient soft-fails)
 - [ ] User JWT / multi-tenant API keys (beyond shared nginx `API_KEY`)
 
 ### Phase 3: Enterprise Features
-- [ ] ASN / IP geolocation
-- [ ] User environment detection (client public IP / ISP)
-- [ ] DKIM selector discovery
+- [x] ASN / IP geolocation (ip-api + bgp.he.net; gated egress)
+- [x] User environment detection (client public IP / ISP)
+- [x] DKIM selector discovery
 - [x] Server-backed temporary shareable analysis links
-- [ ] Multi-domain bulk analysis
-- [ ] Custom alerting and webhooks (outbound; in-app Socket.IO alerts already exist)
+- [x] Multi-domain bulk analysis (`POST /api/analyze/bulk`)
+- [x] Custom alerting and webhooks (outbound; in-app Socket.IO alerts already exist)
 - [ ] Integration with external security feeds
 - [ ] White-label deployment options
-- [ ] Advanced analytics dashboard (real metrics, not mock generators)
+- [x] Advanced analytics dashboard (real metrics only — no mock generators)
+
+### Phase 3 — Intelligence Graph & Entity Deep Links
+Progress tracker for entity deep links, TLS/SAN, ASN/BGP, Memgraph relations, and related gaps.
+
+#### Foundations
+- [x] Remove production mock metrics (PerformanceAnalytics); real data only or omit
+- [x] Site vs script rate limits + backend-only third-party egress (throttle/cache per provider)
+- [x] Memgraph in docker-compose (profiles `graph` / `default`); `GRAPH_BOLT_URL`; Redis fallback
+- [x] Hydrate inbound `?domain=` / `focus` / `id`; topology URL sync
+
+#### TLS, DNS, ASN
+- [x] SSL/TLS certificate probe + SAN extraction; real SSL security scoring; `GET /api/ssl/:domain`
+- [x] Shared-SAN index; Cloudflare Origin CA heuristics; opt-in throttled CT (crt.sh)
+- [x] AsnGeoService: ip-api.com + bgp.he.net IPv4/IPv6 prefix checks (Redis-cached, gated)
+- [x] Real DNSSEC validation + SRV lookup in DNS service
+- [x] DKIM selector discovery
+- [x] User environment detection (client IP/ISP via backend only)
+
+#### Graph, relations, entities
+- [x] Extended analysis snapshot / share payload (registrar, NS, cert, ASN; redaction)
+- [x] EntityRelationStore: Redis hot index + Memgraph Cypher upsert/query
+- [x] Reverse-lookup APIs `/api/relations/*` (ns, registrar, cert, san, asn, prefix, entity)
+- [x] First-class `/entity/{type}/{id}` pages
+- [x] RDAP `links[]` follow (capped/cached); IANA registrar IDs / stable handles
+- [x] PII / co-tenant redaction on shares and relation responses
+- [x] UI deep links (WHOIS/RDAP/DNS/SSL/topology/share) + `entityLinks` helper
+
+#### Platform
+- [x] Multi-domain bulk analyze (capped; site-budget / API key for scripts)
+- [x] Entity watchlists (NS/registrar/cert/ASN) + outbound webhooks
+- [x] WHOIS health probe; frontend unit tests for new helpers; export includes SSL/ASN/relations summary
+- [x] Real analytics aggregates from snapshots/graph (no mock generators)
+- [x] Server-backed temporary shareable analysis links
+
+#### Deferred
+- Separate entity microservice; paid Cloudflare zone/cert API; ownership claims from SAN/CT; white-label; full multi-tenant JWT; full passive CT corpus; alternate graph engines (Memgraph only)
 
 ## 📄 License
 

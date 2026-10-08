@@ -16,9 +16,22 @@ export interface AnalysisSnapshot {
   hasWhois: boolean;
   hasRdap: boolean;
   hasDns: boolean;
+  hasSsl?: boolean;
   durationMs?: number;
   /** Compact payload for share/detail views */
   security?: Pick<SecurityAnalysis, 'overallScore' | 'breakdown' | 'risks'>;
+  registrar?: { name: string; url?: string; ianaId?: string };
+  nameservers?: string[];
+  entities?: { handle?: string; roles?: string[]; org?: string }[];
+  ssl?: {
+    fingerprintSha256: string;
+    issuer: string;
+    sans: string[];
+    isCloudflareOriginCa?: boolean;
+    validTo?: string;
+  };
+  asnSummary?: { asn: number; asOrg?: string }[];
+  privacy?: { redacted: boolean };
 }
 
 const MAX_SNAPSHOTS_PER_DOMAIN = 100;
@@ -49,6 +62,23 @@ export function buildSnapshotFromAnalysis(
   const events =
     security?.risks?.slice(0, 5).map((r) => r.title || r.description).filter(Boolean) || [];
 
+  const registrarName =
+    response.whois?.registrar?.name || response.rdap?.registrar?.name;
+  const nameservers = (
+    response.whois?.nameservers ||
+    response.rdap?.nameservers?.map((n) =>
+      typeof n === 'string' ? n : n.ldhName
+    ) ||
+    []
+  )
+    .filter(Boolean)
+    .slice(0, 12) as string[];
+
+  const asnMap = new Map<number, string | undefined>();
+  for (const ip of response.dns?.ipIntelligence || []) {
+    if (ip.asn != null) asnMap.set(ip.asn, ip.asOrg);
+  }
+
   return {
     id: randomUUID(),
     domain: response.domain.toLowerCase(),
@@ -62,6 +92,7 @@ export function buildSnapshotFromAnalysis(
     hasWhois: Boolean(response.whois),
     hasRdap: Boolean(response.rdap),
     hasDns: Boolean(response.dns),
+    hasSsl: Boolean(response.ssl),
     durationMs: response.meta?.duration,
     security: security
       ? {
@@ -70,6 +101,33 @@ export function buildSnapshotFromAnalysis(
           risks: security.risks,
         }
       : undefined,
+    registrar: registrarName
+      ? {
+          name: registrarName,
+          url: response.whois?.registrar?.url || response.rdap?.registrar?.url,
+          ianaId:
+            response.whois?.registrar?.ianaId || response.rdap?.registrar?.ianaId,
+        }
+      : undefined,
+    nameservers,
+    entities: (response.rdap?.entities || []).slice(0, 8).map((e) => ({
+      handle: e.handle,
+      roles: e.roles,
+      org: e.org || e.fn,
+    })),
+    ssl: response.ssl
+      ? {
+          fingerprintSha256: response.ssl.fingerprintSha256,
+          issuer: response.ssl.issuer,
+          sans: response.ssl.sans.slice(0, 20),
+          isCloudflareOriginCa: response.ssl.isCloudflareOriginCa,
+          validTo: response.ssl.validTo,
+        }
+      : undefined,
+    asnSummary: Array.from(asnMap.entries())
+      .slice(0, 8)
+      .map(([asn, asOrg]) => ({ asn, asOrg })),
+    privacy: { redacted: true },
   };
 }
 

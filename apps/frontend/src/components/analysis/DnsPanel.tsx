@@ -144,7 +144,12 @@ export default function DnsPanel({
             "w-2 h-2 rounded-full",
             isHealthy ? "bg-green-500" : "bg-red-500"
           )} />
-          <span className="font-mono text-sm">{nameserver.name}</span>
+          <a
+            href={`/entity/ns/${encodeURIComponent(nameserver.name)}`}
+            className="font-mono text-sm underline-offset-4 hover:underline"
+          >
+            {nameserver.name}
+          </a>
         </div>
         <div className="flex items-center space-x-2">
           {responseTime > 0 && (

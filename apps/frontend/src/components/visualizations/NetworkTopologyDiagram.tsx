@@ -391,17 +391,50 @@ export function NetworkTopologyDiagram({
                     {selectedNode.details.reachable !== undefined && (
                       <p><strong>Reachable:</strong> {selectedNode.details.reachable ? 'Yes' : 'No'}</p>
                     )}
+                    <p>
+                      <a
+                        href={`/entity/ns/${encodeURIComponent(selectedNode.name)}`}
+                        className="underline-offset-4 hover:underline text-primary"
+                      >
+                        Related domains / deep link
+                      </a>
+                      {' · '}
+                      <a
+                        href={`/?domain=${encodeURIComponent(selectedNode.name)}`}
+                        className="underline-offset-4 hover:underline text-primary"
+                      >
+                        Analyze nameserver
+                      </a>
+                    </p>
                   </div>
                 )}
                 
                 {selectedNode.type === 'registrar' && selectedNode.details && (
                   <div className="mt-2 space-y-1 text-sm">
                     {selectedNode.details.url && (
-                      <p><strong>URL:</strong> {selectedNode.details.url}</p>
+                      <p>
+                        <strong>URL:</strong>{' '}
+                        <a
+                          href={selectedNode.details.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline-offset-4 hover:underline"
+                        >
+                          {selectedNode.details.url}
+                        </a>
+                      </p>
                     )}
                     {selectedNode.details.abuseContactEmail && (
                       <p><strong>Abuse Contact:</strong> {selectedNode.details.abuseContactEmail}</p>
                     )}
+                    <p>
+                      <a
+                        href={`/entity/registrar/${encodeURIComponent(selectedNode.name)}`}
+                        className="underline-offset-4 hover:underline text-primary"
+                      >
+                        Related domains
+                      </a>
+                    </p>
                   </div>
                 )}
 

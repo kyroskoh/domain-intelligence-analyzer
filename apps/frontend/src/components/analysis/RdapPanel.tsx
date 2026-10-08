@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Network, Building, User, Mail, Phone, Calendar, ExternalLink, Shield, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { RdapData, RdapEntity } from '@/lib/api';
 import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
+import { hrefForEntity, hrefForNameserver } from '@/lib/entityLinks';
 
 interface RdapPanelProps {
   data?: RdapData;
@@ -91,14 +93,32 @@ export default function RdapPanel({
     
     const roles = entity.roles?.length ? entity.roles.join(', ') : 'Unknown role';
     const name = entity.fn || entity.org || entity.handle || 'Unknown';
+    const link = hrefForEntity(entity);
     
     return (
-      <div key={index} className="border rounded-lg p-3 space-y-2">
+      <div key={index} className="border rounded-lg p-3 space-y-2" id={entity.handle ? `focus-entity-${entity.handle}` : undefined}>
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             {entity.roles?.includes('registrant') && <User className="h-4 w-4" />}
             {entity.roles?.includes('registrar') && <Building className="h-4 w-4" />}
-            <span className="font-medium">{name}</span>
+            {link ? (
+              link.external ? (
+                <a
+                  href={link.href}
+                  target={link.href.startsWith('mailto:') ? undefined : '_blank'}
+                  rel="noopener noreferrer"
+                  className="font-medium underline-offset-4 hover:underline"
+                >
+                  {name}
+                </a>
+              ) : (
+                <Link href={link.href} className="font-medium underline-offset-4 hover:underline">
+                  {name}
+                </Link>
+              )
+            ) : (
+              <span className="font-medium">{name}</span>
+            )}
           </div>
           <Badge variant="outline" className="text-xs">
             {roles}
@@ -242,11 +262,21 @@ export default function RdapPanel({
             <div className="space-y-2">
               <span className="font-medium text-muted-foreground">Name Servers:</span>
               <div className="text-sm">
-                {data.nameservers.map((ns, index) => (
-                  <div key={index} className="font-mono">
-                    {typeof ns === 'string' ? ns : ns.ldhName || ns.unicodeName || 'Unknown'}
-                  </div>
-                ))}
+                {data.nameservers.map((ns, index) => {
+                  const host =
+                    typeof ns === 'string' ? ns : ns.ldhName || ns.unicodeName || '';
+                  if (!host) return null;
+                  return (
+                    <div key={index} className="font-mono">
+                      <Link
+                        href={hrefForNameserver(host)}
+                        className="underline-offset-4 hover:underline"
+                      >
+                        {host}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

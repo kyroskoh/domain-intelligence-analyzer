@@ -14,6 +14,7 @@ interface HealthStatus {
     redis?: 'connected' | 'disconnected' | 'unavailable';
     dns?: 'operational' | 'degraded' | 'down';
     whois?: 'operational' | 'degraded' | 'down';
+    graph?: 'up' | 'down' | 'disabled';
   };
   system: {
     memory: {
@@ -100,19 +101,27 @@ router.get('/', async (req: Request, res: Response) => {
     const cpuPercentage = Math.round(((cpuUsage.user + cpuUsage.system) / 1000000) * 100) / 100;
 
     // Check service statuses
+    const { getGraphStatus } = await import('@/services/graph/GraphClient');
     const services = {
       redis: await checkRedisHealth(),
       dns: await checkDnsHealth(),
       whois: await checkWhoisHealth(),
+      graph: getGraphStatus(),
     };
 
-    // Determine overall health status
-    const serviceValues = Object.values(services);
+    // Determine overall health status (graph disabled is OK; graph down is degraded)
     let overallStatus: HealthStatus['status'] = 'healthy';
-    
-    if (serviceValues.some(s => s === 'down' || s === 'disconnected')) {
+    if (
+      services.dns === 'down' ||
+      services.redis === 'disconnected'
+    ) {
       overallStatus = 'unhealthy';
-    } else if (serviceValues.some(s => s === 'degraded')) {
+    } else if (
+      services.dns === 'degraded' ||
+      services.whois === 'degraded' ||
+      services.whois === 'down' ||
+      services.graph === 'down'
+    ) {
       overallStatus = 'degraded';
     }
 
@@ -120,7 +129,7 @@ router.get('/', async (req: Request, res: Response) => {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
-      version: process.env.npm_package_version || '1.0.3',
+      version: process.env.npm_package_version || '1.1.0',
       environment: process.env.NODE_ENV || 'development',
       services,
       system: {
@@ -262,12 +271,22 @@ async function checkDnsHealth(): Promise<'operational' | 'degraded' | 'down'> {
 
 async function checkWhoisHealth(): Promise<'operational' | 'degraded' | 'down'> {
   try {
-    // TODO: Implement actual WHOIS service health check
-    // For now, just return operational
+    const net = await import('net');
+    await new Promise<void>((resolve, reject) => {
+      const socket = net.createConnection({ host: 'whois.iana.org', port: 43 }, () => {
+        socket.end();
+        resolve();
+      });
+      socket.setTimeout(4000, () => {
+        socket.destroy();
+        reject(new Error('WHOIS port43 timeout'));
+      });
+      socket.on('error', reject);
+    });
     return 'operational';
   } catch (error) {
     logger.warn('WHOIS health check failed:', error);
-    return 'down';
+    return 'degraded';
   }
 }
 
