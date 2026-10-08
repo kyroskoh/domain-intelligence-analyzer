@@ -105,10 +105,15 @@ If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.dock
 
 3. **Set up environment variables**
    ```bash
-   # Copy example environment files
+   # App-local env (templates match ./deploy.sh -p nginx preferred defaults)
    cp apps/frontend/.env.example apps/frontend/.env.local
    cp apps/backend/.env.example apps/backend/.env
+   # Optional root compose/deploy env
+   cp .env.example .env
    ```
+
+   Templates prefer `https://domainpeek.xyz` for browser API/CORS. For pure local
+   API (`npm run dev:backend`), set frontend `NEXT_PUBLIC_API_*` to `http://localhost:4001`.
 
 4. **Start development servers**
    ```bash
@@ -417,29 +422,31 @@ npm run docker:down      # Stop Docker services
 
 ### Environment Variables
 
-**Backend (`apps/backend/.env`)**
+**Backend (`apps/backend/.env`)** — see [`apps/backend/.env.example`](apps/backend/.env.example):
 ```env
 PORT=4001
 NODE_ENV=development
-REDIS_URL=redis://localhost:6379
-RATE_LIMIT_WINDOW_MS=900000
-RATE_LIMIT_MAX_REQUESTS=100
 WHOIS_TIMEOUT_MS=10000
 WHOIS_FOLLOW=2
 RDAP_TIMEOUT_MS=15000
 DNS_TIMEOUT_MS=5000
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+CORS_ORIGINS=http://localhost:4000,https://domainpeek.xyz,http://domainpeek.xyz,https://www.domainpeek.xyz,http://www.domainpeek.xyz
 ```
 
 RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
 
-**Frontend (`apps/frontend/.env.local`)**
+**Frontend (`apps/frontend/.env.local`)** — see [`apps/frontend/.env.example`](apps/frontend/.env.example):
 ```env
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
-NEXT_PUBLIC_API_URL=http://localhost:4001
+# Preferred (matches ./deploy.sh -p nginx). Use http://localhost:4001 for local API only.
+NEXT_PUBLIC_API_BASE_URL=https://domainpeek.xyz
+NEXT_PUBLIC_API_URL=https://domainpeek.xyz
+INTERNAL_API_URL=http://localhost:4001
 NEXT_PUBLIC_APP_ENV=development
 ```
 
-For Docker production, prefer `./deploy.sh` — it writes both `NEXT_PUBLIC_API_*` values into the root `.env` and bakes them into the frontend image (do not use `http://backend:4001` for browser-facing URLs).
+**Root (`.env`)** — used by Docker Compose / `./deploy.sh` (see [`.env.example`](.env.example)). Prefer `./deploy.sh` for production: it merges CORS, sets `DOMAIN_NAME=domainpeek.xyz`, writes `NEXT_PUBLIC_API_*`, and bakes them into the frontend image (do not use `http://backend:4001` for browser-facing URLs).
 
 ### Docker Configuration
 

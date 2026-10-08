@@ -15,7 +15,13 @@ npm run dev:frontend
 
 Open [http://localhost:4000](http://localhost:4000).
 
-Locally, set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` (default `http://localhost:4001`). For Docker/VPS, `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md).
+```bash
+cp .env.example .env.local
+```
+
+[`.env.example`](.env.example) prefers `NEXT_PUBLIC_API_*=https://domainpeek.xyz` (same as `./deploy.sh -p nginx`). For a local Express API, change both to `http://localhost:4001`. `INTERNAL_API_URL` defaults to `http://localhost:4001` for `/api/health`.
+
+For Docker/VPS, `./deploy.sh` auto-fills root `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md).
 
 Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend). Registration dates render as **DD/MMM/YYYY** (UTC by default; toggle to local timezone on the dashboard).
 

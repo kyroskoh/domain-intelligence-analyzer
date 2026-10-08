@@ -32,10 +32,16 @@ newgrp docker
 git clone <repository-url>
 cd domain-intelligence-analyzer
 
-# Copy environment template
+# Root compose/deploy env (DOMAIN_NAME, CORS, NEXT_PUBLIC_API_*, Certbot, …)
 cp .env.example .env
 # Edit .env with your configuration
+
+# Optional: local npm run without Docker (same preferred defaults)
+# cp apps/frontend/.env.example apps/frontend/.env.local
+# cp apps/backend/.env.example apps/backend/.env
 ```
+
+Preferred nginx profile host is `DOMAIN_NAME=domainpeek.xyz` (browser API `https://domainpeek.xyz`).
 
 ### 2. Production Deployment
 
