@@ -115,7 +115,7 @@ const limiter = rateLimit({
 });
 
 app.use('/api/', limiter);
-// When API_KEY is set, require X-API-Key + X-Request-Nonce (nginx injects these in production)
+// When API_KEY is set, require API key (X-API-Key or Bearer) + X-Request-Nonce
 app.use('/api/', apiKeyAuth);
 
 // Body parsing middleware

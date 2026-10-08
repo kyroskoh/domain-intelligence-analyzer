@@ -7,7 +7,7 @@ CERTBOT_DOMAINS="${CERTBOT_DOMAINS:-}"
 CERTBOT_STAGING="${CERTBOT_STAGING:-0}"
 CERTBOT_RENEW_INTERVAL_SECONDS="${CERTBOT_RENEW_INTERVAL_SECONDS:-43200}"
 CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-}"
-# Shared with backend — injected into proxied /api/ and /socket.io/ as X-API-Key
+# Shared with backend — injected into proxied /api/ and /socket.io/ as X-API-Key + Bearer
 API_KEY="${API_KEY:-}"
 SSL_DIR="/etc/nginx/ssl"
 LE_DIR="/etc/letsencrypt"
@@ -44,7 +44,7 @@ render_nginx_conf() {
   fi
 
   if [[ -n "${API_KEY}" ]]; then
-    log "Rendered nginx.conf with X-API-Key injection for /api/ and /socket.io/"
+    log "Rendered nginx.conf with X-API-Key + Authorization Bearer injection for /api/ and /socket.io/"
   else
     log "API_KEY unset — proxying without a backend API key (auth disabled on backend if also unset)"
   fi

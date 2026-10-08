@@ -102,7 +102,8 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     const serverUrl = resolveSocketUrl();
 
     // Local/dev without nginx: pass key + nonce via handshake auth when NEXT_PUBLIC_API_KEY is set.
-    // Production nginx injects X-API-Key / X-Request-Nonce on the Socket.IO upgrade.
+    // Also send Authorization Bearer via extraHeaders (polling/Node); auth.apiKey covers browser WS.
+    // Production nginx injects X-API-Key / Bearer / X-Request-Nonce on the Socket.IO upgrade.
     const apiKey = process.env.NEXT_PUBLIC_API_KEY?.trim();
     const auth = apiKey
       ? {
@@ -119,7 +120,12 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       timeout: 10000,
       forceNew: false,
       path: '/socket.io/',
-      ...(auth ? { auth } : {}),
+      ...(auth
+        ? {
+            auth,
+            extraHeaders: { Authorization: `Bearer ${apiKey}` },
+          }
+        : {}),
     });
 
     socket.current.on('connect', () => {

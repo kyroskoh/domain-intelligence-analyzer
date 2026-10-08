@@ -23,7 +23,7 @@ services:
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
       # Security
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4000,http://frontend:4000}
-      # Shared with nginx — when set, /api/* requires X-API-Key + X-Request-Nonce
+      # Shared with nginx — when set, /api/* requires API key (X-API-Key or Bearer) + nonce
       - API_KEY=${API_KEY:-}
       # API Keys (if needed for external services)
       - WHOIS_API_KEY=${WHOIS_API_KEY:-}

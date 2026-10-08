@@ -21,7 +21,7 @@ cp .env.example .env
 
 Both apps use **`.env`** (not `.env.local`). [`.env.example`](.env.example) prefers `NEXT_PUBLIC_API_*=https://domainpeek.xyz` (same as `./deploy.sh -p nginx`). For a local Express API, change both to `http://localhost:4001`. `INTERNAL_API_URL` defaults to `http://localhost:4001` for `/api/health`.
 
-If the backend has `API_KEY` set and you call it directly (no nginx), also set matching `NEXT_PUBLIC_API_KEY` (local/dev only). Prefer `npm run generate:api-key -- --local` from the repo root. In production with nginx, leave `NEXT_PUBLIC_API_KEY` unset — the proxy injects `X-API-Key` + `X-Request-Nonce`.
+If the backend has `API_KEY` set and you call it directly (no nginx), also set matching `NEXT_PUBLIC_API_KEY` (local/dev only). Prefer `npm run generate:api-key -- --local` from the repo root. The frontend then sends `X-API-Key`, `Authorization: Bearer`, and `X-Request-Nonce`. In production with nginx, leave `NEXT_PUBLIC_API_KEY` unset — the proxy injects those headers upstream.
 
 For Docker/VPS, `./deploy.sh` auto-fills root `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md). Use `./deploy.sh -p nginx -k` to generate a shared `API_KEY`.
 

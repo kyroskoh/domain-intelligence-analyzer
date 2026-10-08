@@ -18,8 +18,31 @@ function safeEqualString(a: string, b: string): boolean {
 }
 
 /**
- * When API_KEY is set, require X-API-Key (matching) and X-Request-Nonce (present).
- * Nginx injects both for proxied /api/ and /socket.io/ traffic.
+ * Prefer X-API-Key; otherwise parse Authorization: Bearer <token>.
+ */
+export function extractApiKey(headers: Record<string, unknown>): string {
+  const headerKey = String(headers['x-api-key'] ?? headers['X-API-Key'] ?? '').trim();
+  if (headerKey) {
+    return headerKey;
+  }
+
+  const authorization = String(
+    headers['authorization'] ?? headers['Authorization'] ?? ''
+  ).trim();
+  if (authorization.length < 7) {
+    return '';
+  }
+  const scheme = authorization.slice(0, 6);
+  const separator = authorization[6];
+  if (scheme.toLowerCase() !== 'bearer' || separator !== ' ') {
+    return '';
+  }
+  return authorization.slice(7).trim();
+}
+
+/**
+ * When API_KEY is set, require a matching API key (X-API-Key or Authorization: Bearer)
+ * and X-Request-Nonce (present). Nginx injects these for proxied /api/ and /socket.io/.
  * No-op when API_KEY is unset (local/dev without auth).
  */
 export function apiKeyAuth(req: Request, res: Response, next: NextFunction): void {
@@ -29,7 +52,7 @@ export function apiKeyAuth(req: Request, res: Response, next: NextFunction): voi
     return;
   }
 
-  const providedKey = String(req.headers['x-api-key'] || '').trim();
+  const providedKey = extractApiKey(req.headers as Record<string, unknown>);
   const nonce = String(req.headers['x-request-nonce'] || '').trim();
 
   if (!providedKey || !safeEqualString(providedKey, expectedKey)) {
@@ -66,7 +89,7 @@ export function validateSocketApiKey(headers: Record<string, unknown>, auth?: {
     return { ok: true };
   }
 
-  const headerKey = String(headers['x-api-key'] ?? headers['X-API-Key'] ?? '').trim();
+  const headerKey = extractApiKey(headers);
   const authKey = String(auth?.apiKey ?? '').trim();
   const providedKey = headerKey || authKey;
 

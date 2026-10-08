@@ -54,7 +54,7 @@ Preferred nginx profile host is `DOMAIN_NAME=domainpeek.xyz` (browser API `https
 ./deploy.sh
 
 # Public site with nginx (API origin → https://$DOMAIN_NAME)
-# -k generates API_KEY if missing (nginx injects X-API-Key + X-Request-Nonce)
+# -k generates API_KEY if missing (nginx injects X-API-Key + Bearer + X-Request-Nonce)
 ./deploy.sh -p nginx -k -r
 
 # Rotate the shared API key and rebuild
@@ -108,7 +108,7 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # Shared backend + nginx secret (prefer: ./deploy.sh -k or npm run generate:api-key)
-# When set, /api/* and Socket.IO require X-API-Key + X-Request-Nonce (/health exempt)
+# When set, /api/* and Socket.IO require API key (X-API-Key or Bearer) + X-Request-Nonce (/health exempt)
 # API_KEY=
 
 # Optional: Redis caching
@@ -391,9 +391,9 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    - Prefer nginx (`--profile nginx`) so the site and `/api` share one public origin.
 
 6. **API returns 401 Unauthorized**
-   - `API_KEY` is set on the backend but the request lacks `X-API-Key` + `X-Request-Nonce`.
-   - Through nginx: ensure the same `API_KEY` is in root `.env`, rebuild/restart nginx (`./deploy.sh -p nginx -k -r`), and call the public `/api/` origin (not bare `:4001`).
-   - Local without nginx: set matching `NEXT_PUBLIC_API_KEY` or run `npm run generate:api-key -- --local`, or unset `API_KEY` to disable auth.
+   - `API_KEY` is set on the backend but the request lacks a matching API key (`X-API-Key` or `Authorization: Bearer`) + `X-Request-Nonce`.
+   - Through nginx: ensure the same `API_KEY` is in root `.env`, rebuild/restart nginx (`./deploy.sh -p nginx -k -r`), and call the public `/api/` origin (not bare `:4001`). Nginx injects `X-API-Key`, `Authorization: Bearer`, and nonce.
+   - Local without nginx: set matching `NEXT_PUBLIC_API_KEY` (frontend sends both key headers + nonce) or run `npm run generate:api-key -- --local`, or unset `API_KEY` to disable auth.
    - `/health` stays open on purpose (container healthchecks).
 
 7. **Docker build hangs on `apk` / Alpine (bridge networking)**
@@ -445,7 +445,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 - [ ] Change default passwords
 - [ ] Configure CORS origins properly
 - [ ] Enable rate limiting
-- [ ] Set `API_KEY` in `.env` (shared by backend + nginx; injects `X-API-Key` + `X-Request-Nonce`) — or `./deploy.sh -p nginx -k` / `-K` to generate/rotate
+- [ ] Set `API_KEY` in `.env` (shared by backend + nginx; injects `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`) — or `./deploy.sh -p nginx -k` / `-K` to generate/rotate
 - [ ] Use HTTPS with valid certificates
 - [ ] Keep base images updated
 - [ ] Run containers as non-root users

@@ -329,6 +329,7 @@ class ApiClient {
         if (apiKey) {
           config.headers = config.headers ?? {};
           config.headers['X-API-Key'] = apiKey;
+          config.headers['Authorization'] = `Bearer ${apiKey}`;
           config.headers['X-Request-Nonce'] =
             typeof crypto !== 'undefined' && crypto.randomUUID
               ? crypto.randomUUID()

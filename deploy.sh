@@ -75,7 +75,7 @@ ENVIRONMENT:
     CERTBOT_DOMAINS     Optional comma-separated SANs (e.g. www.domainpeek.xyz).
     CLOUDFLARE_API_TOKEN  Cloudflare API token (Zone DNS Edit). Required with
                         DOMAIN_NAME + CERTBOT_EMAIL for auto TLS.
-    API_KEY             Shared secret for backend + nginx (X-API-Key). Prefer
+    API_KEY             Shared secret for backend + nginx (X-API-Key + Bearer). Prefer
                         -k / -K or: npm run generate:api-key
 
 EXAMPLES:

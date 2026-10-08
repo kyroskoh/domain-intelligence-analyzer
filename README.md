@@ -35,7 +35,7 @@ A production-grade web application that provides comprehensive domain analysis i
 ### Export & Sharing
 - **Multiple Export Formats**: JSON, CSV, PDF reports
 - **Share Links**: Copy a search URL today; server-backed temporary shareable analysis links planned (Phase 3)
-- **API Access**: RESTful API for programmatic access (optional `API_KEY` + nginx nonce headers in production)
+- **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production)
 - **Webhook Integration**: Planned for Phase 3 (custom alerting)
 
 ## 🏗️ Architecture
@@ -440,13 +440,13 @@ DNS_TIMEOUT_MS=5000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 CORS_ORIGINS=http://localhost:4000,https://domainpeek.xyz,http://domainpeek.xyz,https://www.domainpeek.xyz,http://www.domainpeek.xyz
-# When set, /api/* and Socket.IO require X-API-Key + X-Request-Nonce (/health exempt)
+# When set, /api/* and Socket.IO require API key (X-API-Key or Bearer) + X-Request-Nonce (/health exempt)
 # API_KEY=
 ```
 
 RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
 
-**API key + nginx nonce:** Set the same `API_KEY` in root `.env` (passed to backend and nginx). With `./deploy.sh -p nginx`, nginx injects `X-API-Key` and a per-request `X-Request-Nonce` (`$request_id`) on `/api/` and `/socket.io/`. Direct hits to `:4001` without those headers return `401`. For local `npm run dev` without nginx, either leave `API_KEY` unset or set matching `API_KEY` (backend) and `NEXT_PUBLIC_API_KEY` (frontend, local only).
+**API key + nginx nonce:** Set the same `API_KEY` in root `.env` (passed to backend and nginx). With `./deploy.sh -p nginx`, nginx injects `X-API-Key`, `Authorization: Bearer <API_KEY>`, and a per-request `X-Request-Nonce` (`$request_id`) on `/api/` and `/socket.io/`. Direct clients may send either `X-API-Key` or `Authorization: Bearer` (plus nonce); hits to `:4001` without a valid key return `401`. For local `npm run dev` without nginx, either leave `API_KEY` unset or set matching `API_KEY` (backend) and `NEXT_PUBLIC_API_KEY` (frontend sends both key headers + nonce, local only).
 
 Generate and autofill a key (creates `.env` from examples when missing):
 
@@ -530,7 +530,7 @@ curl http://localhost/health
 **Production notes:**
 - `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` (build args) and merges `CORS_ORIGINS`
 - Optional overrides: `PUBLIC_API_URL=...`, `PUBLIC_HOST=<ip>`
-- Set `API_KEY` in `.env` before `-p nginx` so nginx and backend share the secret (injected as `X-API-Key` + `X-Request-Nonce`)
+- Set `API_KEY` in `.env` before `-p nginx` so nginx and backend share the secret (injected as `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`)
 - Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
@@ -583,7 +583,7 @@ The application is designed to be deployed on:
 - [x] Real-time monitoring (Socket.IO + nginx `/socket.io/`)
 - [x] WHOIS←RDAP date/status/NS enrichment + DD/MMM/YYYY (+ time) with UTC/Local toggle
 - [x] API rate limiting (Express + nginx)
-- [x] API key via nginx (`X-API-Key` + `X-Request-Nonce`); direct `:4001` rejected when `API_KEY` is set
+- [x] API key via nginx (`X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`); direct `:4001` rejected when `API_KEY` is set
 - [ ] Historical data tracking (persist analysis snapshots; charts currently mock history)
 - [ ] Analysis snapshot store (Redis/DB) for trends, timeline, and future share links
 - [ ] Parse RDAP entity vCards in API + UI (contacts not “Unknown”)

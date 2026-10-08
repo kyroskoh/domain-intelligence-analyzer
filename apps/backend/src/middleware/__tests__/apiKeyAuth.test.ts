@@ -81,6 +81,76 @@ describe('apiKeyAuth', () => {
     );
     expect(next).toHaveBeenCalled();
   });
+
+  it('accepts Authorization Bearer + valid nonce', () => {
+    process.env.API_KEY = 'secret-key-value';
+    const next = jest.fn() as NextFunction;
+    const res = mockRes();
+    apiKeyAuth(
+      {
+        headers: {
+          authorization: 'Bearer secret-key-value',
+          'x-request-nonce': 'abcdefgh-1234',
+        },
+      } as unknown as Request,
+      res,
+      next
+    );
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('accepts case-insensitive Bearer scheme', () => {
+    process.env.API_KEY = 'secret-key-value';
+    const next = jest.fn() as NextFunction;
+    const res = mockRes();
+    apiKeyAuth(
+      {
+        headers: {
+          authorization: 'bearer secret-key-value',
+          'x-request-nonce': 'abcdefgh-1234',
+        },
+      } as unknown as Request,
+      res,
+      next
+    );
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('rejects wrong Bearer token', () => {
+    process.env.API_KEY = 'secret-key-value';
+    const next = jest.fn() as NextFunction;
+    const res = mockRes();
+    apiKeyAuth(
+      {
+        headers: {
+          authorization: 'Bearer wrong-key',
+          'x-request-nonce': 'abcdefgh-1234',
+        },
+      } as unknown as Request,
+      res,
+      next
+    );
+    expect(next).not.toHaveBeenCalled();
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('prefers X-API-Key over mismatched Bearer', () => {
+    process.env.API_KEY = 'secret-key-value';
+    const next = jest.fn() as NextFunction;
+    const res = mockRes();
+    apiKeyAuth(
+      {
+        headers: {
+          'x-api-key': 'secret-key-value',
+          authorization: 'Bearer wrong-key',
+          'x-request-nonce': 'abcdefgh-1234',
+        },
+      } as unknown as Request,
+      res,
+      next
+    );
+    expect(next).toHaveBeenCalled();
+  });
 });
 
 describe('validateSocketApiKey', () => {
@@ -107,6 +177,15 @@ describe('validateSocketApiKey', () => {
     process.env.API_KEY = 'secret-key-value';
     const result = validateSocketApiKey({
       'x-api-key': 'secret-key-value',
+      'x-request-nonce': 'nginx-request-id',
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('accepts Authorization Bearer via handshake headers', () => {
+    process.env.API_KEY = 'secret-key-value';
+    const result = validateSocketApiKey({
+      authorization: 'Bearer secret-key-value',
       'x-request-nonce': 'nginx-request-id',
     });
     expect(result.ok).toBe(true);
