@@ -2,7 +2,7 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, TLS certificate probing, ASN/BGP intelligence, entity deep links, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
-**Version:** 1.2.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
+**Version:** 1.3.0 · **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
 
 ## 🚀 Features
 
@@ -39,8 +39,9 @@ A production-grade web application that provides comprehensive domain analysis i
 - **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards
 - **Cached results**: Redis/memory hits return `meta.cached` (+ `meta.cachedAt`); UI shows a Cached badge; **Refresh** uses `?noCache=1` (stampede-locked) for a live re-run
 - **Private analyze**: Opt out of the public feed with `?private=1` / UI checkbox — still snapshottable and shareable via deliberate share links
-- **Recent feed**: `/recent` and `GET /api/recent` list the last 50 unique **announced** domains with shareable snapshot links
-- **Share Links**: Server-backed temporary shareable analysis snapshots (`/share/[token]`) plus `?domain=` deep links
+- **Recent feed**: Home page expandable “View recently analyzed domains” preview (opens a domain in a new tab; **See more** → `/recent`); `/recent` and `GET /api/recent` list the last 50 unique **announced** domains with shareable snapshot links
+- **Share Links**: Server-backed temporary shareable analysis snapshots (`/share/[token]`) store the **full** (redacted) analysis for a cached dashboard replay; older compact-only links keep a summary fallback. Also supports `?domain=` deep links
+- **Cached timestamps**: `Cached · …` and snapshot dates use **DD/MMM/YYYY HH:MM:SS** with the same UTC/Local toggle as registration dates
 - **Deep links stay put**: Entity / NS / registrar / cert / SAN / ASN links open in a **new browser tab** so the current analysis dashboard is preserved
 - **Ops list (internal)**: `npm run list:analyzed` (or `docker compose exec backend npm run list:analyzed`) lists all analyses including private + cache status — not a public API
 - **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production); site vs script rate budgets
@@ -680,9 +681,11 @@ Progress tracker for entity deep links, TLS/SAN, ASN/BGP, Memgraph relations, an
 - [x] EntityRelationStore: Redis hot index + Memgraph Cypher upsert/query
 - [x] Reverse-lookup APIs `/api/relations/*` (ns, registrar, cert, san, asn, prefix, entity)
 - [x] First-class `/entity/{type}/{id}` pages
-- [x] RDAP `links[]` follow (capped/cached); IANA registrar IDs / stable handles
+- [x] RDAP `links[]` follow (capped/cached/retry); thick registrar RDAP (e.g. namerdap.systems) merges vCard entities + IANA IDs; Redis cache faults do not fail the follow
 - [x] PII / co-tenant redaction on shares and relation responses
 - [x] UI deep links (WHOIS/RDAP/DNS/SSL/topology/share) + `entityLinks` helper
+- [x] Full analysis payload on Redis snapshots for share/dashboard cached replay
+- [x] Home recent-domains expandable preview + `/recent` see-more
 
 #### Platform
 - [x] Multi-domain bulk analyze (capped; site-budget / API key for scripts)

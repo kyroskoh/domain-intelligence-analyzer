@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { cn } from '@/lib/utils';
+import { cn, DateDisplayTimezone, formatTimestamp } from '@/lib/utils';
 import { SecurityAnalysis } from '@/lib/api';
 
 interface SecurityPanelProps {
@@ -15,9 +15,16 @@ interface SecurityPanelProps {
   isLoading: boolean;
   compact?: boolean;
   className?: string;
+  dateTimezone?: DateDisplayTimezone;
 }
 
-export default function SecurityPanel({ data, isLoading, compact = false, className }: SecurityPanelProps) {
+export default function SecurityPanel({
+  data,
+  isLoading,
+  compact = false,
+  className,
+  dateTimezone = 'utc',
+}: SecurityPanelProps) {
   if (isLoading) {
     return (
       <Card className={className}>
@@ -195,7 +202,8 @@ export default function SecurityPanel({ data, isLoading, compact = false, classN
         {/* Last Checked */}
         {data.lastChecked && (
           <div className="text-xs text-muted-foreground border-t pt-3">
-            Last security scan: {new Date(data.lastChecked).toLocaleString()}
+            Last security scan:{' '}
+            {formatTimestamp(data.lastChecked, dateTimezone) || data.lastChecked}
           </div>
         )}
 

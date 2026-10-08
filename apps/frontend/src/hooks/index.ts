@@ -23,6 +23,7 @@ export {
 
 export {
   useAppState,
+  AppStateProvider,
   type AppSettings,
   type AppState,
 } from './useAppState';

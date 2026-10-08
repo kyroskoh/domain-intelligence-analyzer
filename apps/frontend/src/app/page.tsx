@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Globe, Activity, TrendingUp } from 'lucide-react';
 import DomainSearch from '@/components/analysis/DomainSearch';
 import DomainDashboard from '@/components/analysis/DomainDashboard';
+import { RecentDomainsToggle } from '@/components/RecentDomainsToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
@@ -117,11 +118,7 @@ function HomeInner() {
               className="mx-auto"
               autoFocus
             />
-            <p className="text-sm text-muted-foreground">
-              <Link href="/recent" className="underline hover:text-foreground">
-                View recently analyzed domains
-              </Link>
-            </p>
+            <RecentDomainsToggle />
           </section>
 
           {!displayDomain && (

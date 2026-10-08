@@ -26,7 +26,9 @@ import {
   useAppState,
 } from '@/hooks';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
+import { cn, formatTimestamp } from '@/lib/utils';
+import { DomainAnalysisResponse } from '@/lib/api';
+import { transformDomainAnalysisResponse } from '@/lib/data-transform';
 import WhoisPanel from './WhoisPanel';
 import RdapPanel from './RdapPanel';
 import DnsPanel from './DnsPanel';
@@ -40,6 +42,10 @@ import { exportToJSON } from '@/lib/export';
 interface DomainDashboardProps {
   domain: string;
   className?: string;
+  /** Frozen snapshot analysis — skips live fetch and shows Cached UI */
+  frozenAnalysis?: DomainAnalysisResponse;
+  /** When true, hide refresh / live-only actions */
+  readOnly?: boolean;
 }
 
 function filterWarnings(warnings: string[] | undefined, ...keywords: string[]): string[] {
@@ -50,15 +56,21 @@ function filterWarnings(warnings: string[] | undefined, ...keywords: string[]): 
   });
 }
 
-export default function DomainDashboard({ domain, className }: DomainDashboardProps) {
+export default function DomainDashboard({
+  domain,
+  className,
+  frozenAnalysis,
+  readOnly = false,
+}: DomainDashboardProps) {
   const { activeView, setActiveView, settings, updateSettings } = useAppState();
   const { privateAnalyze } = useDomainSearch();
   const analyzeMutation = useAnalyzeDomain();
   const { toast } = useToast();
   const dateTimezone = settings.dateTimezone ?? 'utc';
+  const isFrozen = Boolean(frozenAnalysis);
 
   const domainAnalysis = useDomainAnalysis(domain, {
-    enabled: Boolean(domain),
+    enabled: Boolean(domain) && !isFrozen,
     ...settings.defaultAnalysisOptions,
     private: privateAnalyze,
   });
@@ -77,27 +89,35 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
     );
   }
 
-  const resolvedWhois = domainAnalysis.data?.whois;
-  const resolvedRdap = domainAnalysis.data?.rdap;
-  const resolvedDns = domainAnalysis.data?.dns;
-  const metaWarnings = domainAnalysis.data?.meta?.warnings ?? [];
+  const analysisData = isFrozen
+    ? transformDomainAnalysisResponse(frozenAnalysis)
+    : domainAnalysis.data;
+  const resolvedWhois = analysisData?.whois;
+  const resolvedRdap = analysisData?.rdap;
+  const resolvedDns = analysisData?.dns;
+  const metaWarnings: string[] = analysisData?.meta?.warnings ?? [];
   const whoisWarnings = filterWarnings(metaWarnings, 'whois');
   const rdapWarnings = filterWarnings(metaWarnings, 'rdap');
   const dnsWarnings = filterWarnings(metaWarnings, 'dns');
   const rdapWarning =
     rdapWarnings[0] ||
-    (!resolvedRdap && domainAnalysis.data
+    (!resolvedRdap && analysisData
       ? 'RDAP lookup failed for this domain/TLD'
       : undefined);
 
-  const isLoading = domainAnalysis.isLoading || analyzeMutation.isPending;
-  const hasError = !!domainAnalysis.error;
-  const lastUpdated = domainAnalysis.dataUpdatedAt || Date.now();
-  const isCached = Boolean(domainAnalysis.data?.meta?.cached);
+  const isLoading = !isFrozen && (domainAnalysis.isLoading || analyzeMutation.isPending);
+  const hasError = !isFrozen && !!domainAnalysis.error;
+  const lastUpdated = isFrozen
+    ? analysisData?.analyzedAt || analysisData?.meta?.cachedAt
+    : domainAnalysis.dataUpdatedAt || Date.now();
+  const isCached = isFrozen || Boolean(analysisData?.meta?.cached);
   const cachedAt =
-    domainAnalysis.data?.meta?.cachedAt || domainAnalysis.data?.analyzedAt;
+    analysisData?.meta?.cachedAt || analysisData?.analyzedAt;
+  const cachedLabel = formatTimestamp(cachedAt, dateTimezone);
+  const lastUpdatedLabel = formatTimestamp(lastUpdated, dateTimezone);
 
   const handleRefresh = async () => {
+    if (isFrozen || readOnly) return;
     try {
       await analyzeMutation.mutateAsync({
         domain,
@@ -120,7 +140,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         whois: resolvedWhois,
         rdap: resolvedRdap,
         dns: resolvedDns,
-        security: domainAnalysis.data?.security,
+        security: analysisData?.security,
         dateTimezone,
       };
 
@@ -175,32 +195,33 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           <div className="flex items-center space-x-2 flex-wrap">
             <Globe className="h-5 w-5" />
             <h2 className="text-2xl font-bold">{domain}</h2>
-            <StatusBadge 
-              isLoading={isLoading} 
-              hasError={!!hasError} 
-              lastUpdated={lastUpdated}
+            <StatusBadge
+              isLoading={isLoading}
+              hasError={!!hasError}
             />
             {isCached && !isLoading && !hasError && (
-              <Badge variant="secondary" title={cachedAt ? `As of ${cachedAt}` : undefined}>
+              <Badge
+                key={`cached-${dateTimezone}-${cachedLabel || ''}`}
+                variant="secondary"
+                title={cachedLabel ? `As of ${cachedLabel}` : undefined}
+              >
                 Cached
-                {cachedAt
-                  ? ` · ${new Date(cachedAt).toLocaleString()}`
-                  : ''}
+                {cachedLabel ? ` · ${cachedLabel}` : ''}
               </Badge>
             )}
-            {privateAnalyze && (
+            {privateAnalyze && !isFrozen && (
               <Badge variant="outline">Private</Badge>
             )}
           </div>
-          {settings.showTimestamps && (
-            <p className="text-sm text-muted-foreground">
-              Last updated: {new Date(lastUpdated).toLocaleString()}
+          {settings.showTimestamps && lastUpdatedLabel && (
+            <p className="text-sm text-muted-foreground" key={`updated-${dateTimezone}`}>
+              Last updated: {lastUpdatedLabel}
             </p>
           )}
-          {domainAnalysis.data?.meta?.sharePath && !privateAnalyze && (
+          {analysisData?.meta?.sharePath && !privateAnalyze && !isFrozen && (
             <p className="text-sm text-muted-foreground">
               <a
-                href={domainAnalysis.data.meta.sharePath}
+                href={analysisData.meta.sharePath}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline hover:text-foreground"
@@ -212,15 +233,17 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         </div>
         
         <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void handleRefresh()}
-            disabled={analyzeMutation.isPending}
-          >
-            <Refresh className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          {!isFrozen && !readOnly && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRefresh()}
+              disabled={analyzeMutation.isPending}
+            >
+              <Refresh className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -298,7 +321,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           icon={<Shield className="h-4 w-4" />}
           isLoading={isLoading}
           hasError={!!domainAnalysis.error}
-          data={domainAnalysis.data?.security}
+          data={analysisData?.security}
           onClick={() => scrollToSection('security-section')}
         />
       </div>
@@ -323,7 +346,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               compact
               warnings={whoisWarnings}
               warning={
-                !resolvedWhois && !resolvedRdap && domainAnalysis.data
+                !resolvedWhois && !resolvedRdap && analysisData
                   ? 'WHOIS lookup failed for this domain/TLD'
                   : undefined
               }
@@ -342,14 +365,15 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               compact
               warnings={dnsWarnings}
             />
-            <SecurityPanel 
-              data={domainAnalysis.data?.security} 
-              isLoading={isLoading} 
-              compact 
+            <SecurityPanel
+              data={analysisData?.security}
+              isLoading={isLoading}
+              compact
+              dateTimezone={dateTimezone}
             />
             <SslPanel
-              data={domainAnalysis.data?.ssl}
-              ctSans={domainAnalysis.data?.ct?.ctSans}
+              data={analysisData?.ssl}
+              ctSans={analysisData?.ct?.ctSans}
             />
           </div>
         </TabsContent>
@@ -364,7 +388,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                 isLoading={isLoading && !resolvedWhois}
                 warnings={whoisWarnings}
                 warning={
-                  !resolvedWhois && !resolvedRdap && domainAnalysis.data
+                  !resolvedWhois && !resolvedRdap && analysisData
                     ? 'WHOIS lookup failed for this domain/TLD'
                     : undefined
                 }
@@ -388,14 +412,15 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             </div>
             <div id="ssl-section">
               <SslPanel
-                data={domainAnalysis.data?.ssl}
-                ctSans={domainAnalysis.data?.ct?.ctSans}
+                data={analysisData?.ssl}
+                ctSans={analysisData?.ct?.ctSans}
               />
             </div>
             <div id="security-section">
-              <SecurityPanel 
-                data={domainAnalysis.data?.security} 
-                isLoading={isLoading} 
+              <SecurityPanel
+                data={analysisData?.security}
+                isLoading={isLoading}
+                dateTimezone={dateTimezone}
               />
             </div>
           </div>
@@ -407,8 +432,8 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
             whoisData={resolvedWhois}
             dnsData={resolvedDns}
             rdapData={resolvedRdap}
-            sslData={domainAnalysis.data?.ssl}
-            securityData={domainAnalysis.data?.security as any}
+            sslData={analysisData?.ssl}
+            securityData={analysisData?.security as any}
           />
         </TabsContent>
 
@@ -419,8 +444,8 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               dateTimezone={dateTimezone}
               analysisData={{
                 domain,
-                analyzedAt: domainAnalysis.data?.analyzedAt || new Date().toISOString(),
-                meta: domainAnalysis.data?.meta || {
+                analyzedAt: analysisData?.analyzedAt || new Date().toISOString(),
+                meta: analysisData?.meta || {
                   requestId: 'client-generated',
                   duration: 0,
                   cached: false,
@@ -430,7 +455,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                 whois: resolvedWhois,
                 rdap: resolvedRdap,
                 dns: resolvedDns,
-                security: domainAnalysis.data?.security
+                security: analysisData?.security
               }}
             />
           </div>
@@ -444,7 +469,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                 whois: resolvedWhois,
                 rdap: resolvedRdap,
                 dns: resolvedDns,
-                analysis: domainAnalysis.data,
+                analysis: analysisData,
               }, null, 2)}
             </pre>
           </div>
@@ -458,10 +483,9 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
 interface StatusBadgeProps {
   isLoading: boolean;
   hasError: boolean;
-  lastUpdated: number;
 }
 
-function StatusBadge({ isLoading, hasError, lastUpdated }: StatusBadgeProps) {
+function StatusBadge({ isLoading, hasError }: StatusBadgeProps) {
   if (isLoading) {
     return (
       <Badge variant="secondary" className="animate-pulse">

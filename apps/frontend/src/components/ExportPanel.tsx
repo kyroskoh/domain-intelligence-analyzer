@@ -26,7 +26,7 @@ import {
   ExportFormat 
 } from '@/lib/export';
 import { apiClient, DomainAnalysisResponse } from '@/lib/api';
-import { DateDisplayTimezone } from '@/lib/utils';
+import { DateDisplayTimezone, formatTimestamp } from '@/lib/utils';
 
 interface ExportPanelProps {
   domain: string;
@@ -133,7 +133,7 @@ export function ExportPanel({
       
       toast({
         title: "Share Link Copied",
-        description: `Link points at a stored snapshot; expires ${new Date(created.expiresAt).toLocaleString()}.`,
+        description: `Link points at a stored snapshot; expires ${formatTimestamp(created.expiresAt, dateTimezone) || created.expiresAt}.`,
       });
       
       setTimeout(() => setShared(false), 3000);

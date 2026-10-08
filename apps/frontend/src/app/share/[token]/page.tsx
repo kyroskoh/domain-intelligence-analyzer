@@ -10,10 +10,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { DeepLink } from '@/components/DeepLink';
+import DomainDashboard from '@/components/analysis/DomainDashboard';
+import { useAppState } from '@/hooks';
+import { formatTimestamp } from '@/lib/utils';
 
 export default function SharePage() {
   const params = useParams<{ token: string }>();
   const token = params?.token || '';
+  const { settings } = useAppState();
+  const dateTimezone = settings.dateTimezone ?? 'utc';
   const [data, setData] = useState<ShareResolveResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +53,9 @@ export default function SharePage() {
   }, [token]);
 
   const snapshot: AnalysisSnapshot | undefined = data?.snapshot;
+  const hasFullAnalysis = Boolean(snapshot?.analysis);
+  const analyzedLabel = formatTimestamp(snapshot?.analyzedAt, dateTimezone);
+  const expiresLabel = formatTimestamp(data?.expiresAt, dateTimezone);
 
   return (
     <div className="min-h-screen bg-background">
@@ -70,13 +78,21 @@ export default function SharePage() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 max-w-2xl space-y-6">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to analyzer
-          </Link>
-        </Button>
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to analyzer
+            </Link>
+          </Button>
+          {snapshot && (
+            <p className="text-sm text-muted-foreground">
+              Snapshot from {analyzedLabel || '—'}
+              {expiresLabel ? ` · link expires ${expiresLabel}` : ''}
+            </p>
+          )}
+        </div>
 
         {loading && (
           <Card>
@@ -98,18 +114,36 @@ export default function SharePage() {
           </Card>
         )}
 
-        {!loading && snapshot && (
-          <Card>
+        {!loading && snapshot?.analysis && (
+          <div className="space-y-4">
+            <DomainDashboard
+              domain={snapshot.domain}
+              frozenAnalysis={snapshot.analysis}
+              readOnly
+            />
+            <Button asChild className="w-full sm:w-auto">
+              <a
+                href={`/?domain=${encodeURIComponent(snapshot.domain)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Analyze {snapshot.domain} again
+              </a>
+            </Button>
+          </div>
+        )}
+
+        {!loading && snapshot && !hasFullAnalysis && (
+          <Card className="max-w-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Shield className="h-5 w-5" />
                 {snapshot.domain}
               </CardTitle>
               <CardDescription>
-                Snapshot from {new Date(snapshot.analyzedAt).toLocaleString()}
-                {data?.expiresAt
-                  ? ` · link expires ${new Date(data.expiresAt).toLocaleString()}`
-                  : ''}
+                Compact snapshot (full details unavailable for this older link).
+                {analyzedLabel ? ` From ${analyzedLabel}` : ''}
+                {expiresLabel ? ` · expires ${expiresLabel}` : ''}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

@@ -53,7 +53,7 @@ const swaggerOptions = {
     openapi: '3.0.0',
     info: {
       title: 'DomainPeek API',
-      version: '1.2.0',
+      version: '1.3.0',
       description: 'Comprehensive domain analysis API providing WHOIS, RDAP, DNS, and security insights',
     },
     servers: [
@@ -155,7 +155,7 @@ function setupMiddleware(): void {
   app.get('/', (req, res) => {
     res.json({
       message: 'DomainPeek API',
-      version: '1.2.0',
+      version: '1.3.0',
       docs: '/docs',
       health: '/health',
       history: '/api/history/:domain',

@@ -81,6 +81,10 @@ describe('SnapshotStore helpers', () => {
     expect(snapshot.events).toContain('Missing CAA');
     expect(snapshot.id).toBeTruthy();
     expect(snapshot.privacy).toEqual({ redacted: true, announced: true });
+    expect(snapshot.analysis?.domain).toBe('example.com');
+    expect(snapshot.analysis?.meta.cached).toBe(true);
+    expect(snapshot.analysis?.whois?.domain).toBe('example.com');
+    expect(snapshot.analysis?.security?.overallScore).toBe(72);
   });
 
   it('respects private/announced option and redacts emails in entity org', () => {
@@ -117,6 +121,10 @@ describe('SnapshotStore helpers', () => {
     expect(snapshot.privacy?.redacted).toBe(true);
     expect(snapshot.entities?.[0]?.org).toContain('[redacted]');
     expect(snapshot.entities?.[0]?.org).not.toContain('contact@acme.example');
+    expect(snapshot.analysis?.rdap?.entities?.[0]?.org).toContain('[redacted]');
+    expect(snapshot.analysis?.rdap?.entities?.[0]?.org).not.toContain(
+      'contact@acme.example'
+    );
   });
 });
 

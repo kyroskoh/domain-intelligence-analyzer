@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
+import { formatTimestamp } from '@/lib/utils';
+import { useAppState } from '@/hooks';
 
 type RecentEntry = {
   domain: string;
@@ -28,6 +30,8 @@ function riskVariant(
 }
 
 export default function RecentPage() {
+  const { settings } = useAppState();
+  const dateTimezone = settings.dateTimezone ?? 'utc';
   const [entries, setEntries] = useState<RecentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -137,7 +141,7 @@ export default function RecentPage() {
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(entry.analyzedAt).toLocaleString()}
+                        {formatTimestamp(entry.analyzedAt, dateTimezone) || entry.analyzedAt}
                       </p>
                     </div>
                     <Button variant="outline" size="sm" asChild className="shrink-0">

@@ -29,10 +29,10 @@ Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend).
 
 ## Useful routes
 
-- `/` — main domain analysis UI (includes live notification bell; hydrates `?domain=` / `focus` / `id` / `private=1`)
+- `/` — main domain analysis UI (includes live notification bell; hydrates `?domain=` / `focus` / `id` / `private=1`; expandable recent-domains preview)
 - `/recent` — last 50 unique announced analyses with shareable snapshot links
 - `/entity/[type]/[id]` — relation pages (ns, registrar, cert, asn, prefix, rdap, san); entity/analyze deep links from the dashboard open in a new tab
-- `/share/[token]` — server-backed shared analysis snapshot
+- `/share/[token]` — cached full analysis dashboard from a stored snapshot (compact summary fallback for older links)
 - `/test-charts` — chart/theme sandbox (synthetic fixtures only)
 - `/api/health` — frontend health proxy toward the backend (`INTERNAL_API_URL` in Docker)
 

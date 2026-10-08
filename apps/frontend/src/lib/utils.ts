@@ -93,3 +93,41 @@ export function getTimezoneLabel(timezone: DateDisplayTimezone): string {
     return 'Local';
   }
 }
+
+/**
+ * Wall-clock timestamps (Cached, Last updated, share expiry).
+ * Always includes HH:MM:SS and a timezone label so UTC ↔ Local toggles are obvious.
+ */
+export function formatTimestamp(
+  value?: string | Date | number | null,
+  timezone: DateDisplayTimezone = 'utc'
+): string | undefined {
+  if (value == null || value === '') return undefined;
+  try {
+    let date: Date;
+    if (typeof value === 'number') {
+      date = new Date(value);
+    } else if (value instanceof Date) {
+      date = value;
+    } else {
+      date = new Date(value);
+    }
+    if (Number.isNaN(date.getTime())) return undefined;
+
+    const day = timezone === 'utc' ? date.getUTCDate() : date.getDate();
+    const month = timezone === 'utc' ? date.getUTCMonth() : date.getMonth();
+    const year = timezone === 'utc' ? date.getUTCFullYear() : date.getFullYear();
+    const hours = timezone === 'utc' ? date.getUTCHours() : date.getHours();
+    const minutes = timezone === 'utc' ? date.getUTCMinutes() : date.getMinutes();
+    const seconds = timezone === 'utc' ? date.getUTCSeconds() : date.getSeconds();
+
+    const dd = String(day).padStart(2, '0');
+    const mmm = MONTH_ABBR[month];
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    return `${dd}/${mmm}/${year} ${hh}:${mm}:${ss} ${getTimezoneLabel(timezone)}`;
+  } catch {
+    return undefined;
+  }
+}

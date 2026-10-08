@@ -376,6 +376,8 @@ export interface AnalysisSnapshot {
     validTo?: string;
   };
   asnSummary?: { asn: number; asOrg?: string }[];
+  /** Full analysis for share/dashboard views (may be absent on older snapshots) */
+  analysis?: DomainAnalysisResponse;
 }
 
 export interface HistoryResponse {

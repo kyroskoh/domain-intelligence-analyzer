@@ -1,4 +1,13 @@
-import { useState, useCallback, useEffect } from 'react';
+'use client';
+
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTheme } from 'next-themes';
 import type { DateDisplayTimezone } from '@/lib/utils';
 
@@ -8,7 +17,7 @@ export interface AppSettings {
   refreshInterval: number; // in seconds
   showAdvancedData: boolean;
   enableNotifications: boolean;
-  
+
   // Display preferences
   compactMode: boolean;
   showTimestamps: boolean;
@@ -20,7 +29,7 @@ export interface AppSettings {
     includeDns: boolean;
     includeSecurityAnalysis: boolean;
   };
-  
+
   // Visualization preferences
   enableAnimations: boolean;
   preferredChartType: 'bar' | 'pie' | 'line' | 'network';
@@ -35,10 +44,9 @@ export interface AppState {
   connectionStatus: 'online' | 'offline' | 'checking';
 }
 
-// Default settings
 const DEFAULT_SETTINGS: AppSettings = {
   autoRefresh: false,
-  refreshInterval: 300, // 5 minutes
+  refreshInterval: 300,
   showAdvancedData: false,
   enableNotifications: true,
   compactMode: false,
@@ -55,13 +63,32 @@ const DEFAULT_SETTINGS: AppSettings = {
   colorScheme: 'default',
 };
 
-// Local storage key
 const SETTINGS_STORAGE_KEY = 'domain-analyzer-settings';
 const APP_STATE_STORAGE_KEY = 'domain-analyzer-app-state';
 
-export function useAppState() {
+type AppStateContextValue = {
+  settings: AppSettings;
+  sidebarOpen: boolean;
+  activeView: AppState['activeView'];
+  lastAnalyzedDomain?: string;
+  connectionStatus: AppState['connectionStatus'];
+  theme: string | undefined;
+  updateSettings: (newSettings: Partial<AppSettings>) => void;
+  updateAppState: (newState: Partial<Omit<AppState, 'settings'>>) => void;
+  toggleSidebar: () => void;
+  setActiveView: (view: AppState['activeView']) => void;
+  setLastAnalyzedDomain: (domain: string) => void;
+  setTheme: (theme: string) => void;
+  resetSettings: () => void;
+  exportSettings: () => void;
+  importSettings: (settingsFile: File) => Promise<void>;
+};
+
+const AppStateContext = createContext<AppStateContextValue | null>(null);
+
+function useAppStateStore(): AppStateContextValue {
   const { theme, setTheme } = useTheme();
-  
+
   const [state, setState] = useState<AppState>({
     settings: DEFAULT_SETTINGS,
     sidebarOpen: true,
@@ -70,23 +97,24 @@ export function useAppState() {
     connectionStatus: 'checking',
   });
 
-  // Load settings from localStorage on mount
   useEffect(() => {
     try {
       const storedSettings = localStorage.getItem(SETTINGS_STORAGE_KEY);
       const storedAppState = localStorage.getItem(APP_STATE_STORAGE_KEY);
-      
+
       if (storedSettings) {
         const parsedSettings = JSON.parse(storedSettings) as Partial<AppSettings>;
-        setState(prev => ({
+        setState((prev) => ({
           ...prev,
           settings: { ...DEFAULT_SETTINGS, ...parsedSettings },
         }));
       }
-      
+
       if (storedAppState) {
-        const parsedAppState = JSON.parse(storedAppState) as Partial<Pick<AppState, 'sidebarOpen' | 'activeView' | 'lastAnalyzedDomain'>>;
-        setState(prev => ({
+        const parsedAppState = JSON.parse(storedAppState) as Partial<
+          Pick<AppState, 'sidebarOpen' | 'activeView' | 'lastAnalyzedDomain'>
+        >;
+        setState((prev) => ({
           ...prev,
           ...parsedAppState,
         }));
@@ -96,19 +124,15 @@ export function useAppState() {
     }
   }, []);
 
-  // Check connection status
   useEffect(() => {
     const checkConnection = () => {
-      setState(prev => ({
+      setState((prev) => ({
         ...prev,
         connectionStatus: navigator.onLine ? 'online' : 'offline',
       }));
     };
 
-    // Initial check
     checkConnection();
-
-    // Listen for connection changes
     window.addEventListener('online', checkConnection);
     window.addEventListener('offline', checkConnection);
 
@@ -118,18 +142,16 @@ export function useAppState() {
     };
   }, []);
 
-  // Update settings
   const updateSettings = useCallback((newSettings: Partial<AppSettings>) => {
-    setState(prev => {
+    setState((prev) => {
       const updatedSettings = { ...prev.settings, ...newSettings };
-      
-      // Save to localStorage
+
       try {
         localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(updatedSettings));
       } catch (error) {
         console.warn('Failed to save settings to localStorage:', error);
       }
-      
+
       return {
         ...prev,
         settings: updatedSettings,
@@ -137,49 +159,65 @@ export function useAppState() {
     });
   }, []);
 
-  // Update app state
-  const updateAppState = useCallback((newState: Partial<Omit<AppState, 'settings'>>) => {
-    setState(prev => {
-      const updatedState = { ...prev, ...newState };
-      
-      // Save persistent state to localStorage
+  const updateAppState = useCallback(
+    (newState: Partial<Omit<AppState, 'settings'>>) => {
+      setState((prev) => {
+        const updatedState = { ...prev, ...newState };
+
+        try {
+          const persistentState = {
+            sidebarOpen: updatedState.sidebarOpen,
+            activeView: updatedState.activeView,
+            lastAnalyzedDomain: updatedState.lastAnalyzedDomain,
+          };
+          localStorage.setItem(APP_STATE_STORAGE_KEY, JSON.stringify(persistentState));
+        } catch (error) {
+          console.warn('Failed to save app state to localStorage:', error);
+        }
+
+        return updatedState;
+      });
+    },
+    []
+  );
+
+  const toggleSidebar = useCallback(() => {
+    setState((prev) => {
+      const sidebarOpen = !prev.sidebarOpen;
       try {
         const persistentState = {
-          sidebarOpen: updatedState.sidebarOpen,
-          activeView: updatedState.activeView,
-          lastAnalyzedDomain: updatedState.lastAnalyzedDomain,
+          sidebarOpen,
+          activeView: prev.activeView,
+          lastAnalyzedDomain: prev.lastAnalyzedDomain,
         };
         localStorage.setItem(APP_STATE_STORAGE_KEY, JSON.stringify(persistentState));
-      } catch (error) {
-        console.warn('Failed to save app state to localStorage:', error);
+      } catch {
+        /* ignore */
       }
-      
-      return updatedState;
+      return { ...prev, sidebarOpen };
     });
   }, []);
 
-  // Toggle sidebar
-  const toggleSidebar = useCallback(() => {
-    updateAppState({ sidebarOpen: !state.sidebarOpen });
-  }, [state.sidebarOpen, updateAppState]);
+  const setActiveView = useCallback(
+    (view: AppState['activeView']) => {
+      updateAppState({ activeView: view });
+    },
+    [updateAppState]
+  );
 
-  // Set active view
-  const setActiveView = useCallback((view: AppState['activeView']) => {
-    updateAppState({ activeView: view });
-  }, [updateAppState]);
+  const setLastAnalyzedDomain = useCallback(
+    (domain: string) => {
+      updateAppState({ lastAnalyzedDomain: domain });
+    },
+    [updateAppState]
+  );
 
-  // Set last analyzed domain
-  const setLastAnalyzedDomain = useCallback((domain: string) => {
-    updateAppState({ lastAnalyzedDomain: domain });
-  }, [updateAppState]);
-
-  // Reset settings to defaults
   const resetSettings = useCallback(() => {
-    setState(prev => ({
+    setState((prev) => ({
       ...prev,
       settings: DEFAULT_SETTINGS,
     }));
-    
+
     try {
       localStorage.removeItem(SETTINGS_STORAGE_KEY);
     } catch (error) {
@@ -187,12 +225,11 @@ export function useAppState() {
     }
   }, []);
 
-  // Export settings
   const exportSettings = useCallback(() => {
     const dataStr = JSON.stringify(state.settings, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = 'domain-analyzer-settings.json';
@@ -202,48 +239,78 @@ export function useAppState() {
     URL.revokeObjectURL(url);
   }, [state.settings]);
 
-  // Import settings
-  const importSettings = useCallback((settingsFile: File) => {
-    return new Promise<void>((resolve, reject) => {
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        try {
-          const importedSettings = JSON.parse(e.target?.result as string) as AppSettings;
-          
-          // Validate imported settings (basic check)
-          const validatedSettings = { ...DEFAULT_SETTINGS, ...importedSettings };
-          updateSettings(validatedSettings);
-          
-          resolve();
-        } catch (error) {
-          reject(new Error('Invalid settings file format'));
-        }
-      };
-      
-      reader.onerror = () => reject(new Error('Failed to read settings file'));
-      reader.readAsText(settingsFile);
-    });
-  }, [updateSettings]);
+  const importSettings = useCallback(
+    (settingsFile: File) => {
+      return new Promise<void>((resolve, reject) => {
+        const reader = new FileReader();
 
-  return {
-    // State
-    settings: state.settings,
-    sidebarOpen: state.sidebarOpen,
-    activeView: state.activeView,
-    lastAnalyzedDomain: state.lastAnalyzedDomain,
-    connectionStatus: state.connectionStatus,
-    theme,
-    
-    // Actions
-    updateSettings,
-    updateAppState,
-    toggleSidebar,
-    setActiveView,
-    setLastAnalyzedDomain,
-    setTheme,
-    resetSettings,
-    exportSettings,
-    importSettings,
-  };
+        reader.onload = (e) => {
+          try {
+            const importedSettings = JSON.parse(
+              e.target?.result as string
+            ) as AppSettings;
+            const validatedSettings = { ...DEFAULT_SETTINGS, ...importedSettings };
+            updateSettings(validatedSettings);
+            resolve();
+          } catch {
+            reject(new Error('Invalid settings file format'));
+          }
+        };
+
+        reader.onerror = () => reject(new Error('Failed to read settings file'));
+        reader.readAsText(settingsFile);
+      });
+    },
+    [updateSettings]
+  );
+
+  return useMemo(
+    () => ({
+      settings: state.settings,
+      sidebarOpen: state.sidebarOpen,
+      activeView: state.activeView,
+      lastAnalyzedDomain: state.lastAnalyzedDomain,
+      connectionStatus: state.connectionStatus,
+      theme,
+      updateSettings,
+      updateAppState,
+      toggleSidebar,
+      setActiveView,
+      setLastAnalyzedDomain,
+      setTheme,
+      resetSettings,
+      exportSettings,
+      importSettings,
+    }),
+    [
+      state.settings,
+      state.sidebarOpen,
+      state.activeView,
+      state.lastAnalyzedDomain,
+      state.connectionStatus,
+      theme,
+      updateSettings,
+      updateAppState,
+      toggleSidebar,
+      setActiveView,
+      setLastAnalyzedDomain,
+      setTheme,
+      resetSettings,
+      exportSettings,
+      importSettings,
+    ]
+  );
+}
+
+export function AppStateProvider({ children }: { children: React.ReactNode }) {
+  const value = useAppStateStore();
+  return React.createElement(AppStateContext.Provider, { value }, children);
+}
+
+export function useAppState() {
+  const ctx = useContext(AppStateContext);
+  if (!ctx) {
+    throw new Error('useAppState must be used within AppStateProvider');
+  }
+  return ctx;
 }

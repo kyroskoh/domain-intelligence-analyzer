@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { logger } from '@/utils/logger';
 import { DomainAnalysisResponse, SecurityAnalysis } from '@/types/domain';
-import { redactText } from '@/utils/privacy';
+import { redactEntity, redactText, redactWhoisContacts } from '@/utils/privacy';
 import { connectRedis, getRedisClient } from './redisClient';
 
 export interface AnalysisSnapshot {
@@ -33,6 +33,8 @@ export interface AnalysisSnapshot {
   };
   asnSummary?: { asn: number; asOrg?: string }[];
   privacy?: { redacted: boolean; announced: boolean };
+  /** Full analysis for share/dashboard views (contacts redacted) */
+  analysis?: DomainAnalysisResponse;
 }
 
 const MAX_SNAPSHOTS_PER_DOMAIN = 100;
@@ -53,6 +55,38 @@ function categoryScore(security: SecurityAnalysis | undefined, needle: string): 
     b.category.toLowerCase().includes(needle.toLowerCase())
   );
   return found?.score ?? security?.overallScore ?? 0;
+}
+
+/** Redacted full analysis for share/dashboard replay from cache. */
+export function buildShareAnalysis(
+  response: DomainAnalysisResponse
+): DomainAnalysisResponse {
+  const whois = response.whois ? redactWhoisContacts(response.whois) : undefined;
+  const rdap = response.rdap
+    ? {
+        ...response.rdap,
+        entities: (response.rdap.entities || []).map((entity) => {
+          const redacted = redactEntity(entity);
+          return {
+            ...redacted,
+            org: redactText(entity.org) || entity.org,
+            fn: redactText(entity.fn) || entity.fn,
+          };
+        }),
+      }
+    : undefined;
+
+  return {
+    ...response,
+    domain: response.domain.toLowerCase(),
+    meta: {
+      ...response.meta,
+      cached: true,
+      cachedAt: response.meta.cachedAt || response.analyzedAt,
+    },
+    whois,
+    rdap,
+  };
 }
 
 export function buildSnapshotFromAnalysis(
@@ -138,6 +172,7 @@ export function buildSnapshotFromAnalysis(
       .slice(0, 8)
       .map(([asn, asOrg]) => ({ asn, asOrg: redactText(asOrg) || asOrg })),
     privacy: { redacted: true, announced },
+    analysis: buildShareAnalysis(response),
   };
 }
 

@@ -45,7 +45,7 @@ export class CtLookupService {
           const url = `https://crt.sh/?q=${encodeURIComponent(normalized)}&output=json`;
           const { data } = await axios.get(url, {
             timeout: 15000,
-            headers: { 'User-Agent': 'DomainPeek/1.2.0 (+https://domainpeek.xyz)' },
+            headers: { 'User-Agent': 'DomainPeek/1.3.0 (+https://domainpeek.xyz)' },
           });
           const rows = Array.isArray(data) ? data : [];
           const names = new Set<string>();
