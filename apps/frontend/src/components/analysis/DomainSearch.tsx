@@ -228,7 +228,20 @@ export default function DomainSearch({
         <div className="mt-4 space-y-2">
           <p className="text-xs font-medium text-muted-foreground">Try these examples:</p>
           <div className="flex flex-wrap gap-2">
-            {['google.com', 'github.com', 'stackoverflow.com'].map((example) => (
+            {[
+              'domainpeek.xyz', // .xyz
+              'google.com', // .com
+              'wikipedia.org', // .org
+              'speedtest.net', // .net
+              'twitch.tv', // .tv
+              'github.io', // .io
+              'google.app', // .app
+              'web.dev', // .dev
+              'character.ai', // .ai
+              'proton.me', // .me
+              'carrd.co', // .co
+              'bbc.co.uk', // .uk
+            ].map((example) => (
               <Button
                 key={example}
                 variant="outline"
