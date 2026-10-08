@@ -105,8 +105,8 @@ If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.dock
 
 3. **Set up environment variables**
    ```bash
-   # App-local env (templates match ./deploy.sh -p nginx preferred defaults)
-   cp apps/frontend/.env.example apps/frontend/.env.local
+   # App-local env (both apps use .env — templates match ./deploy.sh -p nginx)
+   cp apps/frontend/.env.example apps/frontend/.env
    cp apps/backend/.env.example apps/backend/.env
    # Optional root compose/deploy env
    cp .env.example .env
@@ -437,7 +437,7 @@ CORS_ORIGINS=http://localhost:4000,https://domainpeek.xyz,http://domainpeek.xyz,
 
 RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
 
-**Frontend (`apps/frontend/.env.local`)** — see [`apps/frontend/.env.example`](apps/frontend/.env.example):
+**Frontend (`apps/frontend/.env`)** — see [`apps/frontend/.env.example`](apps/frontend/.env.example):
 ```env
 # Preferred (matches ./deploy.sh -p nginx). Use http://localhost:4001 for local API only.
 NEXT_PUBLIC_API_BASE_URL=https://domainpeek.xyz

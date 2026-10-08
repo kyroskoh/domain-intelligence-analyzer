@@ -36,8 +36,8 @@ cd domain-intelligence-analyzer
 cp .env.example .env
 # Edit .env with your configuration
 
-# Optional: local npm run without Docker (same preferred defaults)
-# cp apps/frontend/.env.example apps/frontend/.env.local
+# Optional: local npm run without Docker (both apps use .env)
+# cp apps/frontend/.env.example apps/frontend/.env
 # cp apps/backend/.env.example apps/backend/.env
 ```
 
