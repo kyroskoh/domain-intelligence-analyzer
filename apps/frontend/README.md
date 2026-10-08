@@ -23,7 +23,7 @@ Both apps use **`.env`** (not `.env.local`). [`.env.example`](.env.example) pref
 
 For Docker/VPS, `./deploy.sh` auto-fills root `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md).
 
-Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend). Registration dates render as **DD/MMM/YYYY** (UTC by default; toggle to local timezone on the dashboard).
+Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend). Registration dates render as **DD/MMM/YYYY** with **HH:MM:SS** when time is present (UTC by default; toggle to local timezone on the dashboard).
 
 ## Useful routes
 

@@ -7,7 +7,7 @@ A production-grade web application that provides comprehensive domain analysis i
 ## 🚀 Features
 
 ### Core Analysis Engine
-- **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Dates display as **DD/MMM/YYYY** in UTC by default, with a toggle for your local timezone.
+- **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Dates display as **DD/MMM/YYYY** (plus **HH:MM:SS** when the source includes a real time) in UTC by default, with a toggle for your local timezone.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
 - **ASN & IP Intelligence**: Autonomous System Number and IP geolocation data

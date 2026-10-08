@@ -25,7 +25,7 @@ export function DateTimezoneToggle({ value, onChange, className }: DateTimezoneT
       <Globe2 className="h-3.5 w-3.5 shrink-0" />
       <span>
         Dates shown as <span className="font-medium text-foreground">DD/MMM/YYYY</span>
-        {' '}in{' '}
+        {' '}(+ time when available) in{' '}
         <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5 align-middle">
           {getTimezoneLabel(value)}
         </Badge>

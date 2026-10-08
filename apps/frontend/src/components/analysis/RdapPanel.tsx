@@ -145,7 +145,7 @@ export default function RdapPanel({
           )}
         </div>
         <CardDescription>
-          Registration Data Access Protocol details · dates DD/MMM/YYYY ({getTimezoneLabel(dateTimezone)})
+          Registration Data Access Protocol details · dates DD/MMM/YYYY (+ time when available, {getTimezoneLabel(dateTimezone)})
         </CardDescription>
       </CardHeader>
       <CardContent>

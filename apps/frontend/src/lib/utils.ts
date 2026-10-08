@@ -13,7 +13,42 @@ const MONTH_ABBR = [
 export type DateDisplayTimezone = 'utc' | 'local';
 
 /**
+ * True when the source carries a real clock time (not date-only / midnight).
+ * JSON-serialized dates often arrive as T00:00:00.000Z for date-only fields.
+ */
+function hasAvailableTime(value: string | Date): boolean {
+  if (value instanceof Date) {
+    return (
+      value.getUTCHours() !== 0 ||
+      value.getUTCMinutes() !== 0 ||
+      value.getUTCSeconds() !== 0 ||
+      value.getUTCMilliseconds() !== 0
+    );
+  }
+
+  const s = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+
+  const isoTime = s.match(/T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?/i);
+  if (isoTime) {
+    const [, hh, mm, ss = '00'] = isoTime;
+    const msMatch = s.match(/T\d{2}:\d{2}:\d{2}\.(\d+)/i);
+    const hasMs = Boolean(msMatch && Number(msMatch[1]) !== 0);
+    return hh !== '00' || mm !== '00' || ss !== '00' || hasMs;
+  }
+
+  const spaceTime = s.match(/\s(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (spaceTime) {
+    const [, hh, mm, ss = '00'] = spaceTime;
+    return hh !== '00' || mm !== '00' || ss !== '00';
+  }
+
+  return false;
+}
+
+/**
  * Unambiguous display date: DD/MMM/YYYY (e.g. 09/Jun/2009).
+ * Appends HH:MM:SS when the source includes a non-midnight time.
  * Defaults to UTC so day/month are never locale-ambiguous.
  */
 export function formatDisplayDate(
@@ -31,7 +66,17 @@ export function formatDisplayDate(
 
     const dd = String(day).padStart(2, '0');
     const mmm = MONTH_ABBR[month];
-    return `${dd}/${mmm}/${year}`;
+    const datePart = `${dd}/${mmm}/${year}`;
+
+    if (!hasAvailableTime(value)) return datePart;
+
+    const hours = timezone === 'utc' ? date.getUTCHours() : date.getHours();
+    const minutes = timezone === 'utc' ? date.getUTCMinutes() : date.getMinutes();
+    const seconds = timezone === 'utc' ? date.getUTCSeconds() : date.getSeconds();
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(seconds).padStart(2, '0');
+    return `${datePart} ${hh}:${mm}:${ss}`;
   } catch {
     return undefined;
   }

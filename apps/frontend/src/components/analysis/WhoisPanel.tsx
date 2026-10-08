@@ -221,8 +221,8 @@ export default function WhoisPanel({
         </div>
         <CardDescription>
           {filledFromRdap
-            ? `WHOIS gaps filled from RDAP · DD/MMM/YYYY (${getTimezoneLabel(dateTimezone)})`
-            : `Domain registration details · DD/MMM/YYYY (${getTimezoneLabel(dateTimezone)})`}
+            ? `WHOIS gaps filled from RDAP · DD/MMM/YYYY (+ time when available, ${getTimezoneLabel(dateTimezone)})`
+            : `Domain registration details · DD/MMM/YYYY (+ time when available, ${getTimezoneLabel(dateTimezone)})`}
         </CardDescription>
       </CardHeader>
       <CardContent>
