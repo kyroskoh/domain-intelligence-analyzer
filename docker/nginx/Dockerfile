@@ -1,12 +1,12 @@
 FROM nginx:alpine
 
-# certbot + Cloudflare DNS-01 plugin (Alpine community package when available)
+# certbot + Cloudflare DNS-01 plugin (Alpine community: certbot-dns-cloudflare)
 RUN apk add --no-cache \
     bash \
     certbot \
+    certbot-dns-cloudflare \
     curl \
-    openssl \
-    py3-certbot-dns-cloudflare
+    openssl
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh \

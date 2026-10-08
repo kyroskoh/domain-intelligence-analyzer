@@ -151,7 +151,9 @@ With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Por
    - Reverse proxy (`/` → frontend, `/api/` and `/health` → backend)
    - Ports: 80, 443
    - Profile: `nginx` (not started unless enabled)
-   - Custom image with Certbot + Cloudflare DNS plugin
+   - Custom image (`docker/nginx`) based on `nginx:alpine`; apk installs
+     `certbot` and `certbot-dns-cloudflare` (Alpine community package name —
+     not `py3-certbot-dns-cloudflare`)
    - Requires `./ssl` directory (empty is fine; Certbot links LE certs here)
    - Persists Let's Encrypt state in the `letsencrypt` volume
 
@@ -231,7 +233,7 @@ docker compose up --build -d
 
 ## SSL/HTTPS Setup
 
-With the `nginx` profile, TLS is terminated at the custom nginx image (`docker/nginx`). Preferred production path is **Let's Encrypt via Certbot + Cloudflare DNS-01** (works with orange-cloud proxy).
+With the `nginx` profile, TLS is terminated at the custom nginx image (`docker/nginx`). Preferred production path is **Let's Encrypt via Certbot + Cloudflare DNS-01** (works with orange-cloud proxy). The image installs the official Alpine community package `certbot-dns-cloudflare` for the DNS plugin.
 
 ### 1. Automatic certificates (Cloudflare DNS-01)
 

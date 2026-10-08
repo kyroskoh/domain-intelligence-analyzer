@@ -50,7 +50,7 @@ domainpeek/
 ├── docker-compose.yml         # Main Docker orchestration
 ├── docker-compose.override.yml # Docker health check fixes
 ├── docker-compose.dev.yml     # Development overrides
-├── docker/nginx/              # Custom nginx image (Certbot + Cloudflare DNS-01)
+├── docker/nginx/              # Custom nginx image (certbot + certbot-dns-cloudflare)
 ├── nginx.conf                 # Nginx reverse proxy configuration
 └── deploy.sh                  # Automated deployment script
 ```
@@ -155,7 +155,7 @@ mkdir -p ssl
 # or: docker compose --profile redis --profile nginx up --build -d
 ```
 
-For HTTPS with Let's Encrypt (Cloudflare DNS-01), set in `.env` before starting nginx:
+For HTTPS with Let's Encrypt (Cloudflare DNS-01; Alpine package `certbot-dns-cloudflare`), set in `.env` before starting nginx:
 
 ```bash
 DOMAIN_NAME=domainpeek.xyz
