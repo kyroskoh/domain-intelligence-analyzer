@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { Globe, Activity, TrendingUp } from 'lucide-react';
 import DomainSearch from '@/components/analysis/DomainSearch';
 import DomainDashboard from '@/components/analysis/DomainDashboard';
@@ -28,7 +29,11 @@ export default function Home() {
       <header className="border-b">
         <div className="container mx-auto px-4 py-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+            <Link
+              href="/"
+              className="flex items-center space-x-3 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="DomainPeek home"
+            >
               <div className="flex items-center justify-center w-10 h-10 bg-primary text-primary-foreground rounded-lg">
                 <Globe className="h-6 w-6" />
               </div>
@@ -38,7 +43,7 @@ export default function Home() {
                   Comprehensive domain analysis and security insights
                 </p>
               </div>
-            </div>
+            </Link>
             
             <div className="flex items-center space-x-2">
               <ThemeToggle />

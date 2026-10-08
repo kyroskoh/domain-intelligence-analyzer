@@ -52,7 +52,11 @@ export default function SharePage() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 py-6 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
+          <Link
+            href="/"
+            className="flex items-center space-x-3 rounded-lg outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring"
+            aria-label="DomainPeek home"
+          >
             <div className="flex items-center justify-center w-10 h-10 bg-primary text-primary-foreground rounded-lg">
               <Globe className="h-6 w-6" />
             </div>
@@ -60,7 +64,7 @@ export default function SharePage() {
               <h1 className="text-2xl font-bold">DomainPeek</h1>
               <p className="text-sm text-muted-foreground">Shared analysis snapshot</p>
             </div>
-          </div>
+          </Link>
           <ThemeToggle />
         </div>
       </header>
