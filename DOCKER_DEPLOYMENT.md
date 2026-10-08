@@ -100,6 +100,11 @@ NEXT_PUBLIC_API_URL=http://localhost:4001
 PORT=4001
 LOG_LEVEL=info
 
+# Lookup timeouts (ms) — passed through to the backend container
+WHOIS_TIMEOUT_MS=10000
+RDAP_TIMEOUT_MS=25000
+DNS_TIMEOUT_MS=5000
+
 # Security — include every origin users will open in a browser
 # ./deploy.sh auto-merges localhost, domainpeek.xyz (http/https + www), http://<ip-from-ip-a>[:4000]
 # Optional override: PUBLIC_HOST=<ip> ./deploy.sh

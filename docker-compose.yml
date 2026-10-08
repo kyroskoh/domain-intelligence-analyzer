@@ -25,6 +25,10 @@ services:
       # Rate limiting
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
+      # Lookup timeouts (ms) — RDAP registries can be slow from some VPS networks
+      - WHOIS_TIMEOUT_MS=${WHOIS_TIMEOUT_MS:-10000}
+      - RDAP_TIMEOUT_MS=${RDAP_TIMEOUT_MS:-25000}
+      - DNS_TIMEOUT_MS=${DNS_TIMEOUT_MS:-5000}
       # Security
       - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:4000,http://frontend:4000}
       # Shared with nginx — when set, /api/* requires API key (X-API-Key or Bearer) + nonce

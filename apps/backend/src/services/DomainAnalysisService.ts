@@ -150,8 +150,14 @@ export class DomainAnalysisService {
       // Update meta information
       meta.duration = Date.now() - startTime;
 
-      // Cache the result if it contains useful data
-      if (response.whois || response.rdap || response.dns) {
+      // Cache useful results, but never pin a transient RDAP soft-fail — that
+      // would keep "RDAP timed out" in Redis/memory for the full TTL.
+      const rdapTransientFailure =
+        wantRdap &&
+        !response.rdap &&
+        meta.warnings.some((w) => /RDAP timed out|RDAP lookup failed/i.test(w));
+
+      if ((response.whois || response.rdap || response.dns) && !rdapTransientFailure) {
         await this.cacheService.set(cacheKey, response);
       }
 

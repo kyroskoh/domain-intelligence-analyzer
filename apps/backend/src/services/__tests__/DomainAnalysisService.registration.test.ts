@@ -4,6 +4,7 @@ import { RdapService } from '../rdap/RdapService';
 import { DnsService } from '../dns/DnsService';
 import { CacheService } from '../cache/CacheService';
 import { SecurityAnalysisService } from '../security/SecurityAnalysisService';
+import { TimeoutError } from '../../middleware/errorHandler';
 
 jest.mock('../whois/WhoisService');
 jest.mock('../rdap/RdapService');
@@ -17,6 +18,7 @@ describe('DomainAnalysisService registration orchestration', () => {
   let rdapLookup: jest.Mock;
   let rdapAvailable: jest.Mock;
   let dnsLookup: jest.Mock;
+  let cacheSet: jest.Mock;
 
   beforeEach(() => {
     whoisLookup = jest.fn();
@@ -27,6 +29,7 @@ describe('DomainAnalysisService registration orchestration', () => {
       records: {},
       nameservers: [],
     });
+    cacheSet = jest.fn().mockResolvedValue(undefined);
 
     (WhoisService as unknown as jest.Mock).mockImplementation(() => ({
       lookup: whoisLookup,
@@ -46,7 +49,7 @@ describe('DomainAnalysisService registration orchestration', () => {
 
     (CacheService as unknown as jest.Mock).mockImplementation(() => ({
       get: jest.fn().mockResolvedValue(null),
-      set: jest.fn().mockResolvedValue(undefined),
+      set: cacheSet,
       delete: jest.fn().mockResolvedValue(undefined),
       getStats: jest.fn(),
       healthCheck: jest.fn().mockResolvedValue({ memory: true, redis: false }),
@@ -149,5 +152,33 @@ describe('DomainAnalysisService registration orchestration', () => {
     expect(result.whois?.expirationDate).toEqual(new Date('2027-06-09T00:00:00Z'));
     expect((result.whois as any).creationDate).toEqual(new Date('2009-06-09T00:00:00Z'));
     expect(result.meta.warnings.some((w) => w.includes('using RDAP registration data'))).toBe(true);
+  });
+
+  it('soft-fails RDAP timeout without caching the degraded domain result', async () => {
+    rdapLookup.mockRejectedValue(new TimeoutError('RDAP lookup'));
+    whoisLookup.mockResolvedValue({
+      domain: 'domainpeek.xyz',
+      nameservers: ['noah.ns.cloudflare.com'],
+      status: ['active'],
+      registrar: { name: 'Name.com, Inc.' },
+      raw: 'raw',
+    });
+
+    const result = await service.analyzeDomain({
+      domain: 'domainpeek.xyz',
+      includeSecurityAnalysis: false,
+    });
+
+    expect(result.rdap).toBeUndefined();
+    expect(result.whois?.registrar?.name).toBe('Name.com, Inc.');
+    expect(result.meta.warnings).toContain(
+      'RDAP timed out; showing WHOIS/DNS where available'
+    );
+
+    // Domain-level cache must not pin the timeout warning; WHOIS/DNS keys may still set.
+    const domainCacheWrites = cacheSet.mock.calls.filter(
+      ([key]: [string]) => String(key).startsWith('domain:')
+    );
+    expect(domainCacheWrites).toHaveLength(0);
   });
 });

@@ -346,7 +346,7 @@ npm run smoke:tlds --workspace=@domainpeek/backend
 Backend suites cover:
 - IANA RDAP bootstrap loading and new gTLD availability (`.xyz`, `.fans`, `.app`, …)
 - WHOIS parsing, server overrides, and `whoiser` integration
-- Parallel RDAP ∥ WHOIS ∥ DNS analysis; WHOIS gaps filled from RDAP; timeout soft-fail
+- Parallel RDAP ∥ WHOIS ∥ DNS analysis; WHOIS gaps filled from RDAP; RDAP timeout soft-fail (no same-server retry; transient soft-fails not cached)
 
 ### Interactive Chart Testing
 
@@ -438,7 +438,7 @@ PORT=4001
 NODE_ENV=development
 WHOIS_TIMEOUT_MS=10000
 WHOIS_FOLLOW=2
-RDAP_TIMEOUT_MS=15000
+RDAP_TIMEOUT_MS=25000
 DNS_TIMEOUT_MS=5000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
@@ -447,7 +447,7 @@ CORS_ORIGINS=http://localhost:4000,https://domainpeek.xyz,http://domainpeek.xyz,
 # API_KEY=
 ```
 
-RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
+RDAP lookups run in parallel with WHOIS/DNS. On timeout the server tries the next bootstrap URL (no same-server retry), then soft-fails with a warning while WHOIS/DNS still return. Transient RDAP soft-fails are not cached.
 
 **API key + nginx nonce:** Set the same `API_KEY` in root `.env` (passed to backend and nginx). With `./deploy.sh -p nginx`, nginx injects `X-API-Key`, `Authorization: Bearer <API_KEY>`, and a per-request `X-Request-Nonce` (`$request_id`) on `/api/` and `/socket.io/`. Direct clients may send either `X-API-Key` or `Authorization: Bearer` (plus nonce); hits to `:4001` without a valid key return `401`. For local `npm run dev` without nginx, either leave `API_KEY` unset or set matching `API_KEY` (backend) and `NEXT_PUBLIC_API_KEY` (frontend sends both key headers + nonce, local only).
 
@@ -605,6 +605,7 @@ The application is designed to be deployed on:
 - [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
 - [x] Surface `secureDNS` / DS records in RDAP UI
 - [x] Consistent `meta.warnings` on compact analysis cards
+- [x] Harden RDAP timeouts (25s default, no same-server retry, skip caching transient soft-fails)
 - [ ] User JWT / multi-tenant API keys (beyond shared nginx `API_KEY`)
 
 ### Phase 3: Enterprise Features

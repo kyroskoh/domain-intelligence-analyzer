@@ -31,7 +31,9 @@ export class RdapService {
   private refreshTimer: NodeJS.Timeout | null = null;
 
   constructor() {
-    this.timeout = parseInt(process.env.RDAP_TIMEOUT_MS || '15000', 10);
+    // VPS→registry RTT is often 5–12s; 15s left too little headroom and a timeout
+    // retry doubled wall-clock past the browser client's 30–45s budget.
+    this.timeout = parseInt(process.env.RDAP_TIMEOUT_MS || '25000', 10);
     this.rdapBootstrap = new Map();
     this.seedFallbackBootstrap();
     this.bootstrapReady = this.initializeBootstrap();
@@ -222,41 +224,33 @@ export class RdapService {
 
   private async queryRdapServer(serverUrl: string, domain: string): Promise<RdapData> {
     const url = `${serverUrl.replace(/\/$/, '')}/domain/${encodeURIComponent(domain)}`;
-    const maxAttempts = 2;
 
-    let lastError: Error | null = null;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const response = await axios.get(url, {
-          timeout: this.timeout,
-          headers: {
-            Accept: 'application/rdap+json, application/json',
-            'User-Agent': 'DomainPeek/1.0.0',
-          },
-          validateStatus: (status) => status >= 200 && status < 300,
-        });
+    try {
+      const response = await axios.get(url, {
+        timeout: this.timeout,
+        headers: {
+          Accept: 'application/rdap+json, application/json',
+          'User-Agent': 'DomainPeek/1.0.0',
+        },
+        validateStatus: (status) => status >= 200 && status < 300,
+      });
 
-        return this.parseRdapResponse(response.data, domain);
-      } catch (error) {
-        if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
-          lastError = new TimeoutError('RDAP lookup');
-          if (attempt < maxAttempts) {
-            logger.warn(`RDAP timeout for ${domain} at ${serverUrl}; retrying (${attempt}/${maxAttempts})`);
-            await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
-            continue;
-          }
-          throw lastError;
-        }
-        if (axios.isAxiosError(error)) {
-          throw new Error(
-            `RDAP HTTP error: ${error.response?.status ?? 'network'} ${error.response?.statusText ?? error.message}`
-          );
-        }
-        throw error;
+      return this.parseRdapResponse(response.data, domain);
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.code === 'ECONNABORTED') {
+        // Do not retry timeouts on the same server — a second full wait often
+        // exceeds the client budget and merely soft-fails later. Try the next
+        // bootstrap URL instead (caller loops servers).
+        logger.warn(`RDAP timeout for ${domain} at ${serverUrl} after ${this.timeout}ms`);
+        throw new TimeoutError('RDAP lookup');
       }
+      if (axios.isAxiosError(error)) {
+        throw new Error(
+          `RDAP HTTP error: ${error.response?.status ?? 'network'} ${error.response?.statusText ?? error.message}`
+        );
+      }
+      throw error;
     }
-
-    throw lastError || new TimeoutError('RDAP lookup');
   }
 
   private parseRdapResponse(data: any, domain: string): RdapData {

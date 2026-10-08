@@ -146,4 +146,32 @@ describe('RdapService', () => {
 
     await service.close();
   });
+
+  it('does not retry the same RDAP server on timeout', async () => {
+    const previousTimeout = process.env.RDAP_TIMEOUT_MS;
+    process.env.RDAP_TIMEOUT_MS = '100';
+    mockIanaBootstrap();
+    const service = new RdapService();
+    await service.ensureReady();
+
+    const timeoutErr = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+    (mockedAxios.isAxiosError as unknown as jest.Mock).mockReturnValue(true);
+    mockedAxios.get.mockRejectedValue(timeoutErr);
+
+    await expect(service.lookup('domainpeek.xyz')).rejects.toMatchObject({
+      name: 'TimeoutError',
+    });
+
+    const domainCalls = mockedAxios.get.mock.calls.filter(
+      ([url]) => typeof url === 'string' && url.includes('/domain/')
+    );
+    expect(domainCalls).toHaveLength(1);
+
+    await service.close();
+    if (previousTimeout === undefined) {
+      delete process.env.RDAP_TIMEOUT_MS;
+    } else {
+      process.env.RDAP_TIMEOUT_MS = previousTimeout;
+    }
+  });
 });

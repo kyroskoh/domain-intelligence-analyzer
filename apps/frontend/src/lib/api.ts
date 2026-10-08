@@ -320,7 +320,8 @@ class ApiClient {
     
     this.client = axios.create({
       baseURL: this.baseURL,
-      timeout: 30000, // 30 seconds
+      // Allow slow RDAP/WHOIS from distant registries without aborting first
+      timeout: 45000,
       headers: {
         'Content-Type': 'application/json',
       },
