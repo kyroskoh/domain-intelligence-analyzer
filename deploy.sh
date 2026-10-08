@@ -648,9 +648,9 @@ soft_build_fingerprint() {
         printf 'NEXT_PUBLIC_API_URL=%s\n' "$(env_get NEXT_PUBLIC_API_URL)"
         printf 'DOMAIN_NAME=%s\n' "$(env_get DOMAIN_NAME)"
         # nginx.conf is mounted at runtime; still track it for status clarity
-        if [ -f nginx.conf ]; then
-            printf 'nginx.conf='
-            hash_files nginx.conf
+        if [ -f docker/nginx/nginx.conf ]; then
+            printf 'docker/nginx/nginx.conf='
+            hash_files docker/nginx/nginx.conf
             printf '\n'
         fi
     } | hash_payload

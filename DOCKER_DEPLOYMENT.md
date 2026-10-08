@@ -356,7 +356,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout ssl/key.pem -out ssl/cert.pem
 ```
 
-Certificate paths in `nginx.conf` are `/etc/nginx/ssl/cert.pem` and `/etc/nginx/ssl/key.pem`.
+Certificate paths in `docker/nginx/nginx.conf` are `/etc/nginx/ssl/cert.pem` and `/etc/nginx/ssl/key.pem`.
 
 ## Monitoring and Logging
 
@@ -558,7 +558,7 @@ docker system prune -af
 
 ### Custom Nginx Configuration
 
-1. Modify `nginx.conf` for your needs
+1. Modify `docker/nginx/nginx.conf` for your needs
 2. Restart nginx service:
    ```bash
    docker compose restart nginx

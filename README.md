@@ -53,8 +53,7 @@ domain-intelligence-analyzer/
 ├── docker-compose.yml         # Main Docker orchestration
 ├── docker-compose.override.yml # Docker health check fixes
 ├── docker-compose.dev.yml     # Development overrides
-├── docker/nginx/              # Custom nginx image (certbot + certbot-dns-cloudflare)
-├── nginx.conf                 # Nginx reverse proxy configuration (API_KEY template)
+├── docker/nginx/              # Custom nginx image + nginx.conf template (API_KEY)
 └── deploy.sh                  # Automated deployment script
 ```
 

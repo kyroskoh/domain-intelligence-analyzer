@@ -157,7 +157,7 @@ services:
       - API_KEY=${API_KEY:-}
     volumes:
       # Template — entrypoint envsubst writes /etc/nginx/nginx.conf with API_KEY
-      - ./nginx.conf:/etc/nginx/nginx.conf.template:ro
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf.template:ro
       - ./ssl:/etc/nginx/ssl:rw
       - letsencrypt:/etc/letsencrypt
     depends_on:
