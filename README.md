@@ -50,9 +50,11 @@ domainpeek/
 ├── docker-compose.yml         # Main Docker orchestration
 ├── docker-compose.override.yml # Docker health check fixes
 ├── docker-compose.dev.yml     # Development overrides
+├── docker/nginx/              # Custom nginx image (Certbot + Cloudflare DNS-01)
 ├── nginx.conf                 # Nginx reverse proxy configuration
 └── deploy.sh                  # Automated deployment script
 ```
+
 
 ### Tech Stack
 
@@ -153,12 +155,23 @@ mkdir -p ssl
 # or: docker compose --profile redis --profile nginx up --build -d
 ```
 
+For HTTPS with Let's Encrypt (Cloudflare DNS-01), set in `.env` before starting nginx:
+
+```bash
+DOMAIN_NAME=domainpeek.xyz
+CERTBOT_DOMAINS=www.domainpeek.xyz
+CERTBOT_EMAIL=you@example.com
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token   # Zone:DNS:Edit — do not commit
+```
+
+See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md#sslhttps-setup) for full TLS setup.
+
 **Available services:**
 - Frontend: `http://localhost:4000`
 - Backend API: `http://localhost:4001`
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
-- With nginx profile: `http://localhost/` (port 80; proxies UI + `/api/` + `/health`)
+- With nginx profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
 
 For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.env` to a URL browsers can reach (not `http://backend:4001`), then rebuild the frontend image. `./deploy.sh` auto-merges `CORS_ORIGINS` for localhost, **domainpeek.xyz** (http/https + www), and the host IPv4 from `ip a`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
 
@@ -185,10 +198,12 @@ For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.en
 
 3. **Nginx container missing after `docker compose up`:**
    ```bash
-   # Nginx is opt-in via Compose profile
+   # Nginx is opt-in via Compose profile (builds docker/nginx with Certbot)
    mkdir -p ssl
-   docker compose --profile nginx up -d
+   docker compose --profile nginx up --build -d
    ```
+
+   For auto TLS, also set `DOMAIN_NAME`, `CERTBOT_EMAIL`, and `CLOUDFLARE_API_TOKEN` in `.env`.
 
 4. **Build hangs on Alpine `apk` / flaky Docker egress (Linux VPS):**
    ```bash
@@ -477,6 +492,7 @@ curl http://localhost/health
 **Production notes:**
 - Set public `NEXT_PUBLIC_API_BASE_URL` before building for remote browsers
 - `./deploy.sh` auto-merges `CORS_ORIGINS` (host IP from `ip a` + domainpeek.xyz); optional `PUBLIC_HOST=<ip>` override
+- Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
 

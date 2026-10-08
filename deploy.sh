@@ -60,6 +60,11 @@ ENVIRONMENT:
     PUBLIC_HOST         Optional override for the public IP in CORS_ORIGINS.
                         Default: first global IPv4 from `ip -4 addr` (ip a).
                         Always also merges domainpeek.xyz (http/https + www).
+    DOMAIN_NAME         Primary hostname for nginx Let's Encrypt (Cloudflare DNS-01).
+    CERTBOT_EMAIL       Email for Let's Encrypt registration.
+    CERTBOT_DOMAINS     Optional comma-separated SANs (e.g. www.domainpeek.xyz).
+    CLOUDFLARE_API_TOKEN  Cloudflare API token (Zone DNS Edit). Required with
+                        DOMAIN_NAME + CERTBOT_EMAIL for auto TLS.
 
 EXAMPLES:
     ./deploy.sh                                    # Basic production deployment

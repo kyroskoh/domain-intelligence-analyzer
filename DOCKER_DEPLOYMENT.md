@@ -110,7 +110,9 @@ Nginx and Redis are **opt-in**. A plain `docker compose up --build` starts only 
 # Enable Redis caching
 docker compose --profile redis up --build -d
 
-# Enable Nginx reverse proxy (create ./ssl first — compose mounts it)
+# Enable Nginx reverse proxy (create ./ssl first — compose mounts it rw)
+# For Let's Encrypt + Cloudflare, also set DOMAIN_NAME, CERTBOT_EMAIL,
+# CLOUDFLARE_API_TOKEN (and optional CERTBOT_DOMAINS) in .env — see SSL section.
 mkdir -p ssl
 docker compose --profile nginx up --build -d
 
@@ -149,7 +151,9 @@ With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Por
    - Reverse proxy (`/` → frontend, `/api/` and `/health` → backend)
    - Ports: 80, 443
    - Profile: `nginx` (not started unless enabled)
-   - Requires `./ssl` directory (empty is fine until you add TLS certs)
+   - Custom image with Certbot + Cloudflare DNS plugin
+   - Requires `./ssl` directory (empty is fine; Certbot links LE certs here)
+   - Persists Let's Encrypt state in the `letsencrypt` volume
 
 ## Docker Images
 
@@ -174,7 +178,7 @@ docker compose up -d
 - Backend: ~150MB
 - Frontend: ~130MB  
 - Redis: ~40MB
-- Nginx: ~25MB
+- Nginx (with Certbot/Cloudflare plugin): ~80MB
 
 ## Deployment Scenarios
 
@@ -220,18 +224,46 @@ docker compose up --build -d
 
 # Access:
 # - Application: http://localhost (port 80)
-# - SSL: https://localhost (port 443, requires SSL setup)
+# - HTTPS: https://localhost (port 443)
+#   Set DOMAIN_NAME, CERTBOT_EMAIL, CLOUDFLARE_API_TOKEN in .env for Let's Encrypt
+#   (or place cert.pem/key.pem under ./ssl)
 ```
 
 ## SSL/HTTPS Setup
 
-### 1. Certificate Preparation
+With the `nginx` profile, TLS is terminated at the custom nginx image (`docker/nginx`). Preferred production path is **Let's Encrypt via Certbot + Cloudflare DNS-01** (works with orange-cloud proxy).
+
+### 1. Automatic certificates (Cloudflare DNS-01)
+
+1. Create a Cloudflare API token with **Zone → DNS → Edit** on your zone.
+2. Put secrets in a `.env` file next to `docker-compose.yml` (do not commit the token):
 
 ```bash
-# Create SSL directory
-mkdir ssl
+DOMAIN_NAME=domainpeek.xyz
+CERTBOT_DOMAINS=www.domainpeek.xyz
+CERTBOT_EMAIL=you@example.com
+CLOUDFLARE_API_TOKEN=your_cloudflare_api_token
+# Optional: CERTBOT_STAGING=1  # Let's Encrypt staging for dry runs
+# Optional: CERTBOT_RENEW_INTERVAL_SECONDS=43200  # default 12h
+```
 
-# Place your certificates
+3. Ensure `./ssl` exists (compose mounts it read-write for cert links):
+
+```bash
+mkdir -p ssl
+docker compose --profile nginx up --build -d
+```
+
+On first boot the entrypoint issues the cert, symlinks it into `/etc/nginx/ssl`, and starts a renew loop (~every 12h) that reloads nginx after successful renewals. Let's Encrypt data persists in the `letsencrypt` Docker volume.
+
+Required together for auto-issuance: `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN`. `CERTBOT_DOMAINS` is an optional comma-separated SAN list.
+
+### 2. Manual / self-signed certificates
+
+If Certbot env vars are unset, nginx uses files already present under `./ssl`:
+
+```bash
+mkdir -p ssl
 cp your-cert.pem ssl/cert.pem
 cp your-key.pem ssl/key.pem
 
@@ -240,12 +272,7 @@ openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -keyout ssl/key.pem -out ssl/cert.pem
 ```
 
-### 2. Enable HTTPS in nginx.conf
-
-Uncomment the HTTPS server block in `nginx.conf` and update:
-- Server name
-- SSL certificate paths
-- Add location blocks
+Certificate paths in `nginx.conf` are `/etc/nginx/ssl/cert.pem` and `/etc/nginx/ssl/key.pem`.
 
 ## Monitoring and Logging
 

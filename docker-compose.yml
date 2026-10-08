@@ -101,17 +101,27 @@ services:
     profiles:
       - redis
 
-  # Nginx reverse proxy (optional)
+  # Nginx reverse proxy (optional) — Certbot + Cloudflare DNS-01 when env is set
   nginx:
-    image: nginx:alpine
+    build:
+      context: ./docker/nginx
+      dockerfile: Dockerfile
     container_name: domain-analyzer-nginx
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - DOMAIN_NAME=${DOMAIN_NAME:-}
+      - CERTBOT_EMAIL=${CERTBOT_EMAIL:-}
+      - CERTBOT_DOMAINS=${CERTBOT_DOMAINS:-}
+      - CERTBOT_STAGING=${CERTBOT_STAGING:-0}
+      - CERTBOT_RENEW_INTERVAL_SECONDS=${CERTBOT_RENEW_INTERVAL_SECONDS:-43200}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN:-}
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
+      - ./ssl:/etc/nginx/ssl:rw
+      - letsencrypt:/etc/letsencrypt
     depends_on:
       - frontend
       - backend
@@ -124,9 +134,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
         reservations:
-          memory: 32M
+          memory: 64M
     # Only start if nginx profile is enabled
     profiles:
       - nginx
@@ -137,3 +147,5 @@ volumes:
     name: domain-analyzer-backend-logs
   redis-data:
     name: domain-analyzer-redis-data
+  letsencrypt:
+    name: domain-analyzer-letsencrypt
