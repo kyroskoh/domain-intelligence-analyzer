@@ -40,10 +40,14 @@ cp .env.example .env
 ### 2. Production Deployment
 
 ```bash
-# Recommended: automated deploy (installs Docker if needed)
+# Recommended: automated deploy (installs Docker if needed).
+# Also auto-fills NEXT_PUBLIC_API_* + CORS_ORIGINS before building.
 ./deploy.sh
 
-# Or manage Compose directly
+# Public site with nginx (API origin → https://$DOMAIN_NAME)
+./deploy.sh -p nginx -r
+
+# Or manage Compose directly (set NEXT_PUBLIC_API_* in .env yourself first)
 docker compose up --build -d
 
 # Check service status
@@ -74,9 +78,9 @@ Key environment variables in `.env`:
 NODE_ENV=production
 
 # Browser-facing API base URL (baked into the Next.js client at build time).
-# For local Docker without nginx, use the host-published backend port:
+# Prefer ./deploy.sh — it auto-fills both from DOMAIN_NAME (nginx) or PUBLIC_HOST.
+# Manual override only if you skip deploy.sh:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
-# Legacy alias used by some server routes / next.config — keep in sync:
 NEXT_PUBLIC_API_URL=http://localhost:4001
 
 # Backend
@@ -98,9 +102,17 @@ RATE_LIMIT_MAX_REQUESTS=100
 # COMPOSE_PROFILES=redis,nginx
 ```
 
-**Public VPS / remote browser access:** set both `NEXT_PUBLIC_*` values to a URL the **browser** can reach (for example `http://YOUR_PUBLIC_IP:4001`, or `http://YOUR_PUBLIC_IP` when nginx is on port 80). Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. `NEXT_PUBLIC_*` values must be present at **image build** time; changing them in a running container alone has no effect. Rebuild the frontend after updating them.
+**Public VPS / remote browser access:** `./deploy.sh` auto-writes `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_API_URL` before building the frontend image:
 
-`./deploy.sh` merges `CORS_ORIGINS` automatically: `http://localhost:4000`, `http(s)://domainpeek.xyz`, `http(s)://www.domainpeek.xyz`, plus `http://<first-global-ipv4>` and `http://<first-global-ipv4>:4000` from `ip -4 addr` (`ip a`). Existing origins are kept. Override the detected IP with `PUBLIC_HOST=<ip>` only when needed.
+| Deploy mode | Auto-filled browser API origin |
+|-------------|-------------------------------|
+| `./deploy.sh -p nginx` | `https://$DOMAIN_NAME` (default `https://domainpeek.xyz`) |
+| `./deploy.sh` (no nginx) | `http://<detected-ip>:4001` |
+| Override | `PUBLIC_API_URL=https://example.com ./deploy.sh -p nginx -r` |
+
+Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. They are passed as Docker **build args**; changing them in a running container alone has no effect — rebuild (`-r`) after a change.
+
+`./deploy.sh` also merges `CORS_ORIGINS` automatically: `http://localhost:4000`, `http(s)://domainpeek.xyz`, `http(s)://www.domainpeek.xyz`, plus `http://<first-global-ipv4>` and `http://<first-global-ipv4>:4000` from `ip -4 addr` (`ip a`). Existing origins are kept. Override the detected IP with `PUBLIC_HOST=<ip>` only when needed.
 
 ### Service Profiles
 
@@ -355,9 +367,9 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 
 5. **UI shows Offline / API calls fail from a remote browser**
    - Backend may still be healthy on `:4001` while the UI calls `http://localhost:4001` inside the visitor's browser.
-   - Set `NEXT_PUBLIC_API_BASE_URL` (and `NEXT_PUBLIC_API_URL`) to the public API origin and rebuild the frontend.
-   - Run `./deploy.sh` so `CORS_ORIGINS` picks up the host IP (`ip a`) and domainpeek.xyz.
-   - Prefer nginx (`--profile nginx`) so the site is served on port 80 and API paths share that origin.
+   - Re-run `./deploy.sh -p nginx -r` (or without nginx) so it rewrites `NEXT_PUBLIC_API_*` and rebuilds the frontend.
+   - Override with `PUBLIC_API_URL=https://your.domain ./deploy.sh -p nginx -r` if auto-detect is wrong.
+   - Prefer nginx (`--profile nginx`) so the site and `/api` share one public origin.
 
 6. **Docker build hangs on `apk` / Alpine (bridge networking)**
    Host curl to Alpine can work while container egress on the Docker bridge fails (slow/`ECONNRESET` installs, `apk update` hung for minutes). On Linux hosts, set a lower Docker MTU and DNS, then restart Docker:

@@ -65,7 +65,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     setConnectionStatus(prev => ({ ...prev, connecting: true, error: null }));
 
-    const serverUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
+    const serverUrl =
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      'http://localhost:4001';
     
     socket.current = io(serverUrl, {
       transports: ['websocket', 'polling'],

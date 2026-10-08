@@ -32,8 +32,15 @@ RUN npm install
 COPY . .
 
 # Set environment variables for build
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
+
+# Browser-facing API origin — must be a URL the visitor's browser can reach.
+# Passed from compose / deploy.sh (.env). Do not use http://backend:4001 here.
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
+ARG NEXT_PUBLIC_API_URL=
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-$NEXT_PUBLIC_API_BASE_URL}
 
 # Build the application
 RUN npm run build

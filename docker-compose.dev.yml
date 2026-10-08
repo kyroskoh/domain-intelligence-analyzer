@@ -18,9 +18,14 @@ services:
   frontend:
     build:
       target: dev
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}}
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://backend:4001
+      # Browser on the host must reach the published backend port (not Docker DNS)
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4001}}
     volumes:
       - ./apps/frontend:/app
       - /app/node_modules

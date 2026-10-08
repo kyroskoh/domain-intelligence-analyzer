@@ -3,7 +3,12 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Check if the API backend is reachable
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4001';
+    // Prefer Docker-internal backend; NEXT_PUBLIC_* is for browsers only
+    const apiUrl =
+      process.env.INTERNAL_API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      process.env.NEXT_PUBLIC_API_BASE_URL ||
+      'http://localhost:4001';
     let backendStatus = 'unknown';
     
     try {

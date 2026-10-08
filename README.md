@@ -173,7 +173,7 @@ See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md#sslhttps-setup) for full TLS s
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
 - With nginx profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
 
-For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.env` to a URL browsers can reach (not `http://backend:4001`), then rebuild the frontend image. `./deploy.sh` auto-merges `CORS_ORIGINS` for localhost, **domainpeek.xyz** (http/https + www), and the host IPv4 from `ip a`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
+For a public VPS, `./deploy.sh` auto-fills `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` (`https://$DOMAIN_NAME` with `-p nginx`, otherwise `http://<ip>:4001`) and passes them as frontend build args. It also merges `CORS_ORIGINS` for localhost, **domainpeek.xyz**, and the host IPv4 from `ip a`. Override with `PUBLIC_API_URL=...`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
 
 ### Docker Troubleshooting
 
@@ -190,10 +190,11 @@ For a public VPS, set `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` in `.en
    ```bash
    # Backend may be fine while the browser still calls localhost:4001
    curl http://localhost:4001/health
-   curl http://YOUR_PUBLIC_IP:4001/health
+   curl https://domainpeek.xyz/health
 
-   # Fix: point NEXT_PUBLIC_API_BASE_URL at the public API origin, rebuild frontend,
-   # update CORS_ORIGINS, or serve via nginx profile on port 80
+   # Fix: let deploy.sh rewrite NEXT_PUBLIC_API_* and rebuild
+   ./deploy.sh -p nginx -r
+   # Or: PUBLIC_API_URL=https://domainpeek.xyz ./deploy.sh -p nginx -r
    ```
 
 3. **Nginx container missing after `docker compose up`:**
@@ -432,8 +433,11 @@ DNS_TIMEOUT_MS=5000
 **Frontend (`apps/frontend/.env.local`)**
 ```env
 NEXT_PUBLIC_API_BASE_URL=http://localhost:4001
+NEXT_PUBLIC_API_URL=http://localhost:4001
 NEXT_PUBLIC_APP_ENV=development
 ```
+
+For Docker production, prefer `./deploy.sh` — it writes both `NEXT_PUBLIC_API_*` values into the root `.env` and bakes them into the frontend image (do not use `http://backend:4001` for browser-facing URLs).
 
 ### Docker Configuration
 
@@ -454,7 +458,7 @@ services:
 - **Node.js 22 LTS**: Frontend and backend images use `node:22-alpine`
 - **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
 - **Health Checks**: Custom Node.js-based health checks for better reliability
-- **Service Communication**: Frontend connects to backend via `http://backend:4001`
+- **Service Communication**: Browser calls the public API origin (`NEXT_PUBLIC_API_*`); container health uses `INTERNAL_API_URL=http://backend:4001`
 - **Production Ready**: Optimized Docker builds with multi-stage compilation
 
 ## 🚀 Deployment
@@ -490,8 +494,8 @@ curl http://localhost/health
 ```
 
 **Production notes:**
-- Set public `NEXT_PUBLIC_API_BASE_URL` before building for remote browsers
-- `./deploy.sh` auto-merges `CORS_ORIGINS` (host IP from `ip a` + domainpeek.xyz); optional `PUBLIC_HOST=<ip>` override
+- `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` (build args) and merges `CORS_ORIGINS`
+- Optional overrides: `PUBLIC_API_URL=...`, `PUBLIC_HOST=<ip>`
 - Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host

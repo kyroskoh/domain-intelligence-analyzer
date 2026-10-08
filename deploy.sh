@@ -57,10 +57,16 @@ OPTIONS:
     -h, --help         Show this help message
 
 ENVIRONMENT:
-    PUBLIC_HOST         Optional override for the public IP in CORS_ORIGINS.
+    PUBLIC_HOST         Optional override for the public IP in CORS_ORIGINS
+                        and (without nginx) the browser API origin.
                         Default: first global IPv4 from `ip -4 addr` (ip a).
                         Always also merges domainpeek.xyz (http/https + www).
+    PUBLIC_API_URL      Optional full override for NEXT_PUBLIC_API_* (browser
+                        API origin baked into the frontend at build time).
+                        Default: https://$DOMAIN_NAME with -p nginx, else
+                        http://$PUBLIC_HOST:4001 (or http://localhost:4001).
     DOMAIN_NAME         Primary hostname for nginx Let's Encrypt (Cloudflare DNS-01).
+                        Also used as the https:// origin for NEXT_PUBLIC_API_*.
     CERTBOT_EMAIL       Email for Let's Encrypt registration.
     CERTBOT_DOMAINS     Optional comma-separated SANs (e.g. www.domainpeek.xyz).
     CLOUDFLARE_API_TOKEN  Cloudflare API token (Zone DNS Edit). Required with
@@ -165,6 +171,63 @@ detect_public_host() {
     printf '%s' "$ip"
 }
 
+# Read KEY=value from .env (no export / no shell evaluation)
+env_get() {
+    local key="$1"
+    if [ ! -f .env ]; then
+        return 0
+    fi
+    grep -E "^${key}=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//"
+}
+
+# Set or replace KEY=value in .env
+set_env_var() {
+    local key="$1"
+    local value="$2"
+    if grep -qE "^${key}=" .env 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" .env
+    else
+        printf '\n%s=%s\n' "$key" "$value" >> .env
+    fi
+}
+
+using_nginx_profile() {
+    [[ "${PROFILE}" == *"nginx"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"nginx"* ]]
+}
+
+# Derive browser-facing API origin and write NEXT_PUBLIC_API_* into .env (build-time).
+# Override anytime with PUBLIC_API_URL=https://example.com ./deploy.sh ...
+ensure_public_api_urls() {
+    local api_url=""
+    local domain=""
+    local host=""
+
+    if [ -n "${PUBLIC_API_URL:-}" ]; then
+        api_url="${PUBLIC_API_URL%/}"
+    elif using_nginx_profile; then
+        domain="$(env_get DOMAIN_NAME)"
+        if [ -z "$domain" ]; then
+            domain="${DOMAIN_NAME:-domainpeek.xyz}"
+        fi
+        api_url="https://${domain}"
+    else
+        host="$(detect_public_host)"
+        if [ -n "$host" ] && [ "$host" != "127.0.0.1" ] && [ "$host" != "::1" ]; then
+            api_url="http://${host}:4001"
+        else
+            api_url="http://localhost:4001"
+        fi
+    fi
+
+    set_env_var NEXT_PUBLIC_API_BASE_URL "$api_url"
+    set_env_var NEXT_PUBLIC_API_URL "$api_url"
+    export NEXT_PUBLIC_API_BASE_URL="$api_url"
+    export NEXT_PUBLIC_API_URL="$api_url"
+
+    log "NEXT_PUBLIC_API_BASE_URL / NEXT_PUBLIC_API_URL → ${api_url}"
+    log "(override with PUBLIC_API_URL=...; rebuild required after change)"
+}
+
 # Ensure .env CORS_ORIGINS includes public host, domainpeek.xyz, localhost (merge, do not wipe extras)
 ensure_cors_origins() {
     local host
@@ -236,9 +299,10 @@ setup_environment() {
     fi
 
     ensure_cors_origins
+    ensure_public_api_urls
 
     # Nginx profile mounts ./ssl — create empty dir so compose does not fail
-    if [[ "${PROFILE}" == *"nginx"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"nginx"* ]]; then
+    if using_nginx_profile; then
         mkdir -p ssl
     fi
     
@@ -329,18 +393,23 @@ show_status() {
     
     docker compose ps
     
+    local public_api="${NEXT_PUBLIC_API_BASE_URL:-$(env_get NEXT_PUBLIC_API_BASE_URL)}"
+    public_api="${public_api:-http://localhost:4001}"
+
     echo ""
     log "Access URLs:"
     echo "  Frontend:     http://localhost:4000"
     echo "  Backend API:  http://localhost:4001"
     echo "  API Docs:     http://localhost:4001/docs"
+    echo "  Browser API:  ${public_api}  (inlined into frontend build)"
     
-    if [[ "$PROFILE" == *"redis"* ]]; then
+    if [[ "$PROFILE" == *"redis"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"redis"* ]]; then
         echo "  Redis:        localhost:6379"
     fi
     
-    if [[ "$PROFILE" == *"nginx"* ]]; then
-        echo "  Nginx:        http://localhost:80"
+    if using_nginx_profile; then
+        echo "  Nginx:        http://localhost:80 / https://localhost:443"
+        echo "  Public site:  ${public_api}"
     fi
 }
 

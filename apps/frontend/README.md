@@ -15,7 +15,7 @@ npm run dev:frontend
 
 Open [http://localhost:4000](http://localhost:4000).
 
-Set `NEXT_PUBLIC_API_BASE_URL` (see `.env.example` / `.env.local`) to point at the backend (default `http://localhost:4001`).
+Locally, set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` (default `http://localhost:4001`). For Docker/VPS, `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md).
 
 ## Useful routes
 
