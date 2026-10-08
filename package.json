@@ -34,6 +34,7 @@
     "format:check": "prettier --check \"**/*.{js,ts,tsx,json,md}\"",
     "clean": "rimraf apps/*/dist apps/*/.next apps/*/node_modules/.cache",
     "docker:build": "docker compose build",
+    "docker:build:nocache": "DOCKER_BUILD_NO_CACHE=true docker compose build",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "generate:api-key": "node scripts/generate-api-key.mjs"

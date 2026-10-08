@@ -53,9 +53,11 @@ Usage: ./deploy.sh [OPTIONS]
 
 OPTIONS:
     -e, --environment    Environment (production|development) [default: production]
-    -p, --profile       Docker compose profile (redis,nginx)
+    -p, --profile       Docker compose profile (nginx)
     -r, --rebuild       Force rebuild images without cache
+                        (sets DOCKER_BUILD_NO_CACHE=true in compose)
     -u, --pull         Pull latest base images before building
+                        (sets DOCKER_BUILD_PULL=true in compose)
     -k, --generate-api-key  Generate API_KEY if missing (root + backend .env)
     -K, --rotate-api-key    Force a new API_KEY (overwrites existing)
     -h, --help         Show this help message
@@ -79,10 +81,9 @@ ENVIRONMENT:
                         -k / -K or: npm run generate:api-key
 
 EXAMPLES:
-    ./deploy.sh                                    # Basic production deployment
+    ./deploy.sh                                    # Production (frontend + backend + Redis)
     ./deploy.sh -e development                     # Development with hot reload
-    ./deploy.sh -p redis                          # Production with Redis
-    ./deploy.sh -p redis,nginx                    # Full stack with reverse proxy
+    ./deploy.sh -p nginx                          # Full stack with reverse proxy
     ./deploy.sh -e development -r                 # Development with rebuild
     ./deploy.sh -p nginx -u                       # Production with nginx, pull latest
     ./deploy.sh -p nginx -k                       # Ensure API_KEY exists, then deploy
@@ -449,21 +450,87 @@ setup_environment() {
     success "Environment setup completed"
 }
 
+# Fingerprint of inputs that often need a cold rebuild (lockfiles / Dockerfiles).
+# Source edits alone are handled by normal layer cache with --build.
+build_input_fingerprint() {
+    local files=(
+        apps/backend/package.json
+        apps/backend/package-lock.json
+        apps/backend/Dockerfile
+        apps/frontend/package.json
+        apps/frontend/package-lock.json
+        apps/frontend/Dockerfile
+        docker/nginx/Dockerfile
+        docker-compose.yml
+        docker-compose.dev.yml
+    )
+    local existing=()
+    local f
+    for f in "${files[@]}"; do
+        [ -f "$f" ] && existing+=("$f")
+    done
+    if [ ${#existing[@]} -eq 0 ]; then
+        echo "none"
+        return
+    fi
+    # Prefer sha256sum (Linux); fall back to shasum (macOS)
+    if command -v sha256sum &> /dev/null; then
+        cat "${existing[@]}" | sha256sum | awk '{print $1}'
+    elif command -v shasum &> /dev/null; then
+        cat "${existing[@]}" | shasum -a 256 | awk '{print $1}'
+    else
+        # Last resort: sizes + mtimes (still detects most changes)
+        stat -c '%n %s %Y' "${existing[@]}" 2>/dev/null || stat -f '%N %z %m' "${existing[@]}"
+    fi
+}
+
+FINGERPRINT_FILE=".docker-build-fingerprint"
+
+# Enable compose no_cache/pull when -r/-u or when build inputs changed since last deploy.
+configure_build_cache() {
+    local current
+    current="$(build_input_fingerprint)"
+    local previous=""
+    if [ -f "$FINGERPRINT_FILE" ]; then
+        previous="$(tr -d '[:space:]' < "$FINGERPRINT_FILE")"
+    fi
+
+    if [ "$REBUILD" = true ]; then
+        export DOCKER_BUILD_NO_CACHE=true
+        log "Forced rebuild: DOCKER_BUILD_NO_CACHE=true"
+    elif [ -z "$previous" ]; then
+        log "No prior build fingerprint — using layer cache (pass -r for a cold build)"
+    elif [ "$current" != "$previous" ]; then
+        export DOCKER_BUILD_NO_CACHE=true
+        REBUILD=true
+        log "Build inputs changed (lockfile/Dockerfile/compose) — enabling no-cache rebuild"
+    else
+        export DOCKER_BUILD_NO_CACHE="${DOCKER_BUILD_NO_CACHE:-false}"
+        log "Build inputs unchanged — using layer cache"
+    fi
+
+    if [ "$PULL" = true ]; then
+        export DOCKER_BUILD_PULL=true
+        log "Pulling latest base images: DOCKER_BUILD_PULL=true"
+    else
+        export DOCKER_BUILD_PULL="${DOCKER_BUILD_PULL:-false}"
+    fi
+
+    # Stash for save after a successful build
+    BUILD_INPUT_FINGERPRINT="$current"
+}
+
+save_build_fingerprint() {
+    if [ -n "${BUILD_INPUT_FINGERPRINT:-}" ]; then
+        printf '%s\n' "$BUILD_INPUT_FINGERPRINT" > "$FINGERPRINT_FILE"
+    fi
+}
+
 build_images() {
     log "Building Docker images..."
-    
-    BUILD_ARGS=""
-    
-    if [ "$REBUILD" = true ]; then
-        BUILD_ARGS="$BUILD_ARGS --no-cache"
-        log "Forcing rebuild without cache"
-    fi
-    
-    if [ "$PULL" = true ]; then
-        BUILD_ARGS="$BUILD_ARGS --pull"
-        log "Pulling latest base images"
-    fi
-    
+
+    configure_build_cache
+
     # Compose file selection
     COMPOSE_FILES="-f docker-compose.yml"
     
@@ -477,9 +544,11 @@ build_images() {
         export COMPOSE_PROFILES="$PROFILE"
         log "Using profiles: $PROFILE"
     fi
-    
-    docker compose $COMPOSE_FILES build $BUILD_ARGS
-    
+
+    # no_cache / pull come from docker-compose.yml via DOCKER_BUILD_* env
+    docker compose $COMPOSE_FILES build
+
+    save_build_fingerprint
     success "Images built successfully"
 }
 
@@ -495,8 +564,14 @@ deploy_services() {
     if [ -n "$PROFILE" ]; then
         export COMPOSE_PROFILES="$PROFILE"
     fi
-    
-    docker compose $COMPOSE_FILES up --build -d
+
+    # Images were just built; avoid a second cached rebuild that would undo --no-cache.
+    # Still pass --build when cache is allowed so plain code changes are picked up.
+    if [ "${DOCKER_BUILD_NO_CACHE:-false}" = "true" ]; then
+        docker compose $COMPOSE_FILES up -d
+    else
+        docker compose $COMPOSE_FILES up --build -d
+    fi
     
     success "Services deployed successfully"
 }
@@ -544,9 +619,7 @@ show_status() {
         echo "  Browser API:  ${public_api}  (inlined into frontend build)"
     fi
     
-    if [[ "$PROFILE" == *"redis"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"redis"* ]]; then
-        echo "  Redis:        localhost:6379"
-    fi
+    echo "  Redis:        localhost:6379"
 }
 
 cleanup_on_exit() {

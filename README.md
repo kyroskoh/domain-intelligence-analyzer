@@ -89,7 +89,7 @@ Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locall
 - Node.js >= 22.0.0
 - npm >= 8.0.0
 - Docker & Docker Compose V2 (optional, for local development / production containers)
-- Redis (optional, will use in-memory cache if not available)
+- Redis (included in Docker; local npm run falls back to in-memory cache if unset)
 
 If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.docker.com](https://get.docker.com) and add your user to the `docker` group so commands run without `sudo`.
 
@@ -139,7 +139,7 @@ cd domain-intelligence-analyzer
 # Recommended: installs Docker if missing, then deploys
 ./deploy.sh
 
-# Or manage Compose directly (frontend + backend only)
+# Or manage Compose directly (frontend + backend + Redis)
 docker compose up --build
 ```
 
@@ -157,10 +157,10 @@ docker compose down
 # View logs
 docker compose logs -f
 
-# Optional services (Redis cache, Nginx proxy) — not started by default
+# Optional Nginx reverse proxy (Redis is included by default)
 mkdir -p ssl
-./deploy.sh --profile redis,nginx
-# or: docker compose --profile redis --profile nginx up --build -d
+./deploy.sh --profile nginx
+# or: docker compose --profile nginx up --build -d
 ```
 
 For HTTPS with Let's Encrypt (Cloudflare DNS-01; Alpine package `certbot-dns-cloudflare`), set in `.env` before starting nginx:
@@ -177,6 +177,7 @@ See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md#sslhttps-setup) for full TLS s
 **Available services:**
 - Frontend: `http://localhost:4000`
 - Backend API: `http://localhost:4001`
+- Redis: `localhost:6379`
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
 - With nginx profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
@@ -417,6 +418,7 @@ npm run type-check       # TypeScript type checking
 
 # Docker
 npm run docker:build     # Build Docker images
+npm run docker:build:nocache  # Cold rebuild (DOCKER_BUILD_NO_CACHE=true)
 npm run docker:up        # Start services with Docker Compose
 npm run docker:down      # Stop Docker services
 
@@ -491,6 +493,8 @@ services:
 
 **Key Docker Features:**
 - **Node.js 22 LTS**: Frontend and backend images use `node:22-alpine`
+- **Redis by default**: Cache service is part of the core stack (`REDIS_URL=redis://redis:6379`); nginx remains an opt-in profile
+- **Build cache controls**: Compose `no_cache` / `pull` via `DOCKER_BUILD_NO_CACHE` and `DOCKER_BUILD_PULL`; `./deploy.sh -r` / `-u`, or auto no-cache when lockfiles/Dockerfiles change (`.docker-build-fingerprint`)
 - **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
 - **Health Checks**: Custom Node.js-based health checks for better reliability
 - **Service Communication**: Browser calls the public API origin (`NEXT_PUBLIC_API_*`); container health uses `INTERNAL_API_URL=http://backend:4001`
@@ -511,15 +515,15 @@ npm run start
 ### Docker Production
 
 ```bash
-# Core stack (frontend + backend)
+# Core stack (frontend + backend + Redis)
 docker compose up --build -d
 
 # Or use the automated deployment script
 ./deploy.sh --environment production
 
-# With optional services (Redis, Nginx) — nginx is not included unless profiled
+# With optional Nginx — not included unless profiled
 mkdir -p ssl
-./deploy.sh --profile redis,nginx
+./deploy.sh --profile nginx
 
 # Verify deployment health
 curl http://localhost:4000/api/health
@@ -531,6 +535,7 @@ curl http://localhost/health
 **Production notes:**
 - `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` (build args) and merges `CORS_ORIGINS`
 - Optional overrides: `PUBLIC_API_URL=...`, `PUBLIC_HOST=<ip>`
+- Cold rebuild after dependency bumps: `./deploy.sh -r` (or `npm run docker:build:nocache`); add `-u` to pull newer base images
 - Set `API_KEY` in `.env` before `-p nginx` so nginx and backend share the secret (injected as `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`)
 - Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
@@ -594,7 +599,7 @@ The application is designed to be deployed on:
 - [x] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
 - [ ] Real DNSSEC check + SRV lookup in DNS service
 - [ ] Health checks: real Redis ping + WHOIS service probe
-- [ ] Wire Redis store for Express rate limiting when Redis profile is enabled
+- [ ] Wire Redis store for Express rate limiting (Redis is in the default Docker stack)
 - [x] Trim CORS origin list entries
 - [ ] Frontend unit tests (date utils / enrichment); fix `npm run test:frontend`
 - [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)

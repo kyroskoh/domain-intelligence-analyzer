@@ -20,6 +20,9 @@ out/
 .env.test.local
 .env.production.local
 
+# Deploy build-input fingerprint (lockfile/Dockerfile change detection)
+.docker-build-fingerprint
+
 # IDE and editor files
 .vscode/
 .idea/

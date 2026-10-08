@@ -5,6 +5,9 @@ services:
       context: ./apps/backend
       dockerfile: Dockerfile
       target: runner
+      # Set DOCKER_BUILD_NO_CACHE=true (or ./deploy.sh -r) after lockfile/Dockerfile bumps
+      no_cache: ${DOCKER_BUILD_NO_CACHE:-false}
+      pull: ${DOCKER_BUILD_PULL:-false}
     container_name: domain-analyzer-backend
     restart: unless-stopped
     ports:
@@ -13,11 +16,12 @@ services:
       - NODE_ENV=production
       - PORT=4001
       - LOG_LEVEL=info
-      # Redis configuration (optional)
-      - REDIS_URL=${REDIS_URL:-}
-      - REDIS_HOST=${REDIS_HOST:-}
-      - REDIS_PORT=${REDIS_PORT:-}
+      # Redis (started with the default stack)
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_TTL_SECONDS=${REDIS_TTL_SECONDS:-3600}
       # Rate limiting
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
@@ -28,6 +32,9 @@ services:
       # API Keys (if needed for external services)
       - WHOIS_API_KEY=${WHOIS_API_KEY:-}
       - DNS_API_KEY=${DNS_API_KEY:-}
+    depends_on:
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
@@ -50,6 +57,9 @@ services:
       context: ./apps/frontend
       dockerfile: Dockerfile
       target: runner
+      # Set DOCKER_BUILD_NO_CACHE=true (or ./deploy.sh -r) after lockfile/Dockerfile bumps
+      no_cache: ${DOCKER_BUILD_NO_CACHE:-false}
+      pull: ${DOCKER_BUILD_PULL:-false}
       args:
         # Baked into the client bundle at build time (set by ./deploy.sh).
         # With nginx: https://domainpeek.xyz — without: http://<public-ip>:4001
@@ -84,22 +94,29 @@ services:
         reservations:
           memory: 256M
 
-  # Optional Redis service for caching
+  # Redis cache (included in the default stack)
   redis:
     image: redis:7-alpine
     container_name: domain-analyzer-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
+    command: >
+      sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
+        redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD";
+      else
+        redis-server --appendonly yes;
+      fi'
     environment:
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
     # Resource limits
     deploy:
       resources:
@@ -107,15 +124,14 @@ services:
           memory: 128M
         reservations:
           memory: 64M
-    # Only start if Redis is explicitly enabled
-    profiles:
-      - redis
 
   # Nginx reverse proxy (optional) — Certbot + Cloudflare DNS-01 when env is set
   nginx:
     build:
       context: ./docker/nginx
       dockerfile: Dockerfile
+      no_cache: ${DOCKER_BUILD_NO_CACHE:-false}
+      pull: ${DOCKER_BUILD_PULL:-false}
     container_name: domain-analyzer-nginx
     restart: unless-stopped
     ports:

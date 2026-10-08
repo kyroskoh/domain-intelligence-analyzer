@@ -111,12 +111,12 @@ RATE_LIMIT_MAX_REQUESTS=100
 # When set, /api/* and Socket.IO require API key (X-API-Key or Bearer) + X-Request-Nonce (/health exempt)
 # API_KEY=
 
-# Optional: Redis caching
-# REDIS_URL=redis://redis:6379
-# REDIS_PASSWORD=your_password
+# Redis (included in the default stack)
+REDIS_URL=redis://redis:6379
+# REDIS_PASSWORD=your_password   # if set, use redis://:password@redis:6379
 
-# Optional: enable compose profiles without CLI flags
-# COMPOSE_PROFILES=redis,nginx
+# Optional: enable nginx profile without CLI flags
+# COMPOSE_PROFILES=nginx
 ```
 
 **Public VPS / remote browser access:** `./deploy.sh` auto-writes `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_API_URL` before building the frontend image:
@@ -133,11 +133,11 @@ Do **not** use `http://backend:4001` for those variables — that hostname only 
 
 ### Service Profiles
 
-Nginx and Redis are **opt-in**. A plain `docker compose up --build` starts only `frontend` and `backend`.
+A plain `docker compose up --build` starts `frontend`, `backend`, and `redis`. Nginx is **opt-in**.
 
 ```bash
-# Enable Redis caching
-docker compose --profile redis up --build -d
+# Default stack (frontend + backend + Redis)
+docker compose up --build -d
 
 # Enable Nginx reverse proxy (create ./ssl first — compose mounts it rw)
 # For Let's Encrypt + Cloudflare, also set DOMAIN_NAME, CERTBOT_EMAIL,
@@ -145,11 +145,8 @@ docker compose --profile redis up --build -d
 mkdir -p ssl
 docker compose --profile nginx up --build -d
 
-# Enable both
-docker compose --profile redis --profile nginx up --build -d
-
 # Or via deploy.sh
-./deploy.sh --profile redis,nginx
+./deploy.sh --profile nginx
 ```
 
 With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Ports 4000/4001 remain available for direct access unless you close them in the firewall.
@@ -163,18 +160,19 @@ With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Por
    - Port: 4001
    - Health check: `/health`
    - Warms IANA RDAP bootstrap + WHOIS TLD list on startup
+   - Connects to Redis at `redis://redis:6379` by default
 
 2. **Frontend** (`frontend`) 
    - Next.js web application
    - Port: 4000
    - Health check: `/api/health`
 
-### Optional Services
-
 3. **Redis** (`redis`)
-   - In-memory caching
+   - Persistent cache (`appendonly yes`, volume `redis-data`)
    - Port: 6379
-   - Profile: `redis`
+   - Included in the default stack
+
+### Optional Services
 
 4. **Nginx** (`nginx`)
    - Reverse proxy (`/` → frontend; `/api/`, `/health`, and `/socket.io/` → backend)
@@ -199,11 +197,27 @@ Both frontend and backend use multi-stage builds based on `node:22-alpine`:
 - `builder` - Build stage
 - `runner` - Production runtime
 
-After dependency or security bumps (for example Next.js 15.5.27 / Express 4.22.x patches in the lockfile), rebuild without cache so images pick up the new `package-lock.json`:
+After dependency or security bumps (for example Next.js 15.5.27 / Express 4.22.x patches in the lockfile), rebuild without cache so images pick up the new `package-lock.json`.
+
+Compose reads `DOCKER_BUILD_NO_CACHE` / `DOCKER_BUILD_PULL` on each service `build:` block:
+
+| Trigger | Effect |
+|---------|--------|
+| `./deploy.sh -r` | Sets `DOCKER_BUILD_NO_CACHE=true` (cold rebuild) |
+| `./deploy.sh -u` | Sets `DOCKER_BUILD_PULL=true` (refresh `FROM` base images) |
+| Lockfile / Dockerfile / compose change | Auto no-cache vs last `.docker-build-fingerprint` |
+| Source-only edits | Normal layer cache with `docker compose up --build` |
 
 ```bash
-docker compose build --no-cache
+# Via deploy (preferred)
+./deploy.sh -r
+# or: ./deploy.sh -p nginx -r -u
+
+# Manual
+DOCKER_BUILD_NO_CACHE=true docker compose build
 docker compose up -d
+# equivalent: npm run docker:build:nocache
+# or: docker compose build --no-cache && docker compose up -d
 ```
 
 ### Image Sizes (Approximate)
@@ -224,35 +238,27 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 # Access:
 # - Frontend: http://localhost:4000  
 # - Backend API: http://localhost:4001
+# - Redis: localhost:6379
 # - API Docs: http://localhost:4001/docs
 ```
 
 ### 2. Production (Basic)
 
 ```bash
-# Production build with health checks
+# Production build with health checks (frontend + backend + Redis)
 docker compose up --build -d
 
 # Access:
 # - Application: http://localhost:4000
 # - API: http://localhost:4001
+# - Redis: localhost:6379
 ```
 
-### 3. Production with Redis
-
-```bash
-# Enable Redis for caching
-export COMPOSE_PROFILES=redis
-docker compose up --build -d
-
-# Redis available at localhost:6379
-```
-
-### 4. Production with Nginx
+### 3. Production with Nginx
 
 ```bash
 # Full stack with reverse proxy
-export COMPOSE_PROFILES=redis,nginx
+export COMPOSE_PROFILES=nginx
 docker compose up --build -d
 
 # Access:
@@ -362,7 +368,8 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 2. **Build Failures**
    ```bash
    # Clean build without cache
-   docker compose build --no-cache
+   DOCKER_BUILD_NO_CACHE=true docker compose build
+   # or: docker compose build --no-cache
    
    # Remove all containers and rebuild
    docker compose down --volumes --remove-orphans
@@ -435,7 +442,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    - Use specific base image tags
 
 3. **Caching**
-   - Enable Redis profile for API caching
+   - Redis is included by default for API caching
    - Configure Nginx caching for static assets
 
 ## Security Considerations
@@ -466,7 +473,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 ### Data Backup
 
 ```bash
-# Backup Redis data (if using)
+# Backup Redis data
 docker compose exec redis redis-cli BGSAVE
 
 # Backup logs
@@ -514,10 +521,13 @@ docker system prune -af
 
 ### Redis Configuration
 
+Redis is included in the default stack (`REDIS_URL=redis://redis:6379`). Optional password: set `REDIS_PASSWORD` and use `REDIS_URL=redis://:password@redis:6379`.
+
 1. Add custom redis.conf
 2. Mount in docker-compose.yml:
    ```yaml
    redis:
+     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
      volumes:
        - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
    ```
