@@ -7,7 +7,7 @@ A production-grade web application that provides comprehensive domain analysis i
 ## 🚀 Features
 
 ### Core Analysis Engine
-- **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Dates display as **DD/MMM/YYYY** (plus **HH:MM:SS** when the source includes a real time) in UTC by default, with a toggle for your local timezone.
+- **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Entity jCards are flattened (`fn` / `org` / `email` / `tel` / `addr`) so contacts render correctly; top-level `ldhName`, `unicodeName`, `port43`, `links`, and `secureDNS`/DS records are exposed in the UI. Dates display as **DD/MMM/YYYY** (plus **HH:MM:SS** when the source includes a real time) in UTC by default, with a toggle for your local timezone.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
 - **ASN & IP Intelligence**: Autonomous System Number and IP geolocation (planned — Phase 3)
@@ -33,7 +33,8 @@ A production-grade web application that provides comprehensive domain analysis i
 - **Live DNS Monitoring**: After analyze, the UI subscribes over Socket.IO for real DNS change / TTL alerts (nginx proxies `/socket.io/` in production)
 
 ### Export & Sharing
-- **Multiple Export Formats**: JSON, CSV, PDF reports
+- **Multiple Export Formats**: JSON, CSV, and PDF reports — CSV/PDF include RDAP (entities, events, DNSSEC, links) with the same DD/MMM/YYYY date formatting as the UI
+- **Dashboard analyze path**: The web UI loads via a single `/api/analyze` call (no duplicate WHOIS/RDAP/DNS fetches); partial-result notes use `meta.warnings` on compact cards
 - **Share Links**: Copy a search URL today; server-backed temporary shareable analysis links planned (Phase 3)
 - **API Access**: RESTful API for programmatic access (optional `API_KEY` via `X-API-Key` or Bearer + nginx nonce in production)
 - **Webhook Integration**: Planned for Phase 3 (custom alerting)
@@ -255,12 +256,12 @@ curl http://localhost:4001/health
 1. **Navigate to the application** at `http://localhost:4000`
 2. **Enter a domain name** in the search box (e.g., `example.com`)
 3. **View comprehensive analysis** including:
-   - Domain registration details (WHOIS/RDAP)
+   - Domain registration details (WHOIS/RDAP contacts, dates, links, DNSSEC)
    - DNS record breakdown
    - Security score and recommendations
    - Interactive theme-aware visualizations
    - Nameserver health status
-   - Export options in multiple formats
+   - Export options in JSON, CSV, and PDF (RDAP included)
 
 #### Testing Chart Themes
 
@@ -586,19 +587,19 @@ The application is designed to be deployed on:
 - [x] API key via nginx (`X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`); direct `:4001` rejected when `API_KEY` is set
 - [ ] Historical data tracking (persist analysis snapshots; charts currently mock history)
 - [ ] Analysis snapshot store (Redis/DB) for trends, timeline, and future share links
-- [ ] Parse RDAP entity vCards in API + UI (contacts not “Unknown”)
-- [ ] Map RDAP top-level fields (`ldhName`, `unicodeName`, `port43`, `links`)
-- [ ] Fix WHOIS expiry badge for invalid dates; format registrant contact objects
-- [ ] Export CSV/PDF include RDAP; align date formatting with UI
-- [ ] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
+- [x] Parse RDAP entity vCards in API + UI (contacts not “Unknown”)
+- [x] Map RDAP top-level fields (`ldhName`, `unicodeName`, `port43`, `links`)
+- [x] Fix WHOIS expiry badge for invalid dates; format registrant contact objects
+- [x] Export CSV/PDF include RDAP; align date formatting with UI
+- [x] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
 - [ ] Real DNSSEC check + SRV lookup in DNS service
 - [ ] Health checks: real Redis ping + WHOIS service probe
 - [ ] Wire Redis store for Express rate limiting when Redis profile is enabled
-- [ ] Trim CORS origin list entries
+- [x] Trim CORS origin list entries
 - [ ] Frontend unit tests (date utils / enrichment); fix `npm run test:frontend`
 - [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
-- [ ] Surface `secureDNS` / DS records in RDAP UI
-- [ ] Consistent `meta.warnings` on compact analysis cards
+- [x] Surface `secureDNS` / DS records in RDAP UI
+- [x] Consistent `meta.warnings` on compact analysis cards
 - [ ] User JWT / multi-tenant API keys (beyond shared nginx `API_KEY`)
 
 ### Phase 3: Enterprise Features

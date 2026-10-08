@@ -1,11 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Database, Calendar, User, Building, Globe, Clock } from 'lucide-react';
+import { Database, Calendar, User, Building, Globe, Clock, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { WhoisData, RdapData } from '@/lib/api';
+import { WhoisData, RdapData, ContactInfo } from '@/lib/api';
 import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 
 interface WhoisPanelProps {
@@ -16,7 +16,31 @@ interface WhoisPanelProps {
   compact?: boolean;
   className?: string;
   warning?: string;
+  warnings?: string[];
   dateTimezone?: DateDisplayTimezone;
+}
+
+function formatContactValue(value: unknown): string | undefined {
+  if (value == null || value === '') return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value !== 'object') return String(value);
+
+  const contact = value as ContactInfo & { org?: string };
+  const parts = [
+    contact.name,
+    contact.organization || contact.org,
+    contact.email,
+  ]
+    .map((p) => (typeof p === 'string' ? p.trim() : ''))
+    .filter(Boolean);
+
+  if (parts.length) return parts.join(' · ');
+
+  // Last resort: avoid dumping full JSON for empty-ish objects
+  const fallback = Object.values(contact)
+    .filter((v): v is string => typeof v === 'string' && Boolean(v.trim()))
+    .slice(0, 3);
+  return fallback.length ? fallback.join(' · ') : undefined;
 }
 
 function eventDate(rdap: RdapData | undefined, ...actions: string[]): string | undefined {
@@ -89,8 +113,13 @@ export default function WhoisPanel({
   compact = false,
   className,
   warning,
+  warnings,
   dateTimezone = 'utc',
 }: WhoisPanelProps) {
+  const panelWarnings = [
+    ...(warning ? [warning] : []),
+    ...(warnings || []).filter((w) => w && w !== warning),
+  ];
   if (isLoading) {
     return (
       <Card className={className}>
@@ -156,15 +185,11 @@ export default function WhoisPanel({
 
   const getDaysUntilExpiry = (expiryDate?: string) => {
     if (!expiryDate) return null;
-    try {
-      const expiry = new Date(expiryDate);
-      const now = new Date();
-      const diffTime = expiry.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return diffDays;
-    } catch {
-      return null;
-    }
+    const expiry = new Date(expiryDate);
+    if (Number.isNaN(expiry.getTime())) return null;
+    const now = new Date();
+    const diffTime = expiry.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const daysUntilExpiry = getDaysUntilExpiry(expires);
@@ -188,7 +213,7 @@ export default function WhoisPanel({
     : [
         { label: 'Domain Name', value: data.domainName || data.domain, icon: <Globe className="h-4 w-4" /> },
         { label: 'Registrar', value: data.registrar?.name || data.registrar, icon: <Building className="h-4 w-4" /> },
-        { label: 'Registrant', value: data.registrant, icon: <User className="h-4 w-4" /> },
+        { label: 'Registrant', value: formatContactValue(data.registrant), icon: <User className="h-4 w-4" /> },
         { label: 'Creation Date', value: formatDisplayDate(created, dateTimezone), icon: <Calendar className="h-4 w-4" /> },
         { label: 'Updated Date', value: formatDisplayDate(updated, dateTimezone), icon: <Clock className="h-4 w-4" /> },
         { label: 'Expiry Date', value: formatDisplayDate(expires, dateTimezone), icon: <Calendar className="h-4 w-4" /> },
@@ -224,11 +249,28 @@ export default function WhoisPanel({
             ? `WHOIS gaps filled from RDAP · DD/MMM/YYYY (+ time when available, ${getTimezoneLabel(dateTimezone)})`
             : `Domain registration details · DD/MMM/YYYY (+ time when available, ${getTimezoneLabel(dateTimezone)})`}
         </CardDescription>
+        {panelWarnings.length > 0 && (
+          <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <ul className="space-y-0.5">
+              {panelWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className={cn("space-y-3", compact && "space-y-2")}>
           {fieldsToShow.map(({ label, value, icon }, index) => {
             if (!value) return null;
+
+            const display =
+              Array.isArray(value)
+                ? value.join(', ')
+                : typeof value === 'object' && value !== null
+                  ? formatContactValue(value) || 'N/A'
+                  : String(value);
             
             return (
               <div key={index} className="flex items-start justify-between">
@@ -245,12 +287,7 @@ export default function WhoisPanel({
                   "text-right max-w-[200px] break-words",
                   compact && "text-sm"
                 )}>
-                  {Array.isArray(value) 
-                    ? value.join(', ') 
-                    : typeof value === 'object' && value !== null
-                    ? JSON.stringify(value)
-                    : String(value || 'N/A')
-                  }
+                  {display}
                 </div>
               </div>
             );

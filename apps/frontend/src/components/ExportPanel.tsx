@@ -27,14 +27,21 @@ import {
   ExportFormat 
 } from '@/lib/export';
 import { DomainAnalysisResponse } from '@/lib/api';
+import { DateDisplayTimezone } from '@/lib/utils';
 
 interface ExportPanelProps {
   domain: string;
   analysisData: DomainAnalysisResponse;
+  dateTimezone?: DateDisplayTimezone;
   className?: string;
 }
 
-export function ExportPanel({ domain, analysisData, className }: ExportPanelProps) {
+export function ExportPanel({
+  domain,
+  analysisData,
+  dateTimezone = 'utc',
+  className,
+}: ExportPanelProps) {
   const [isExporting, setIsExporting] = useState<ExportFormat | null>(null);
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -46,11 +53,12 @@ export function ExportPanel({ domain, analysisData, className }: ExportPanelProp
   // Transform analysis data to export format
   const exportData: ExportData = {
     domain,
-    timestamp: new Date().toISOString(),
+    timestamp: analysisData.analyzedAt || new Date().toISOString(),
     whois: analysisData.whois,
     rdap: analysisData.rdap,
     dns: analysisData.dns,
-    security: analysisData.security
+    security: analysisData.security,
+    dateTimezone,
   };
 
   const handleExport = async (format: ExportFormat) => {

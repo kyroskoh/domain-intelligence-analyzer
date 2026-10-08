@@ -13,7 +13,7 @@ import {
   Download,
   Eye
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,9 +21,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import {
   useDomainAnalysis, 
-  useWhoisData, 
-  useRdapData, 
-  useDnsData, 
   useClearDomainCache,
   useAppState
 } from '@/hooks';
@@ -43,21 +40,24 @@ interface DomainDashboardProps {
   className?: string;
 }
 
+function filterWarnings(warnings: string[] | undefined, ...keywords: string[]): string[] {
+  if (!warnings?.length) return [];
+  return warnings.filter((w) => {
+    const lower = w.toLowerCase();
+    return keywords.some((k) => lower.includes(k));
+  });
+}
+
 export default function DomainDashboard({ domain, className }: DomainDashboardProps) {
   const { activeView, setActiveView, settings, updateSettings } = useAppState();
   const clearCacheMutation = useClearDomainCache();
   const { toast } = useToast();
   const dateTimezone = settings.dateTimezone ?? 'utc';
 
-  // Fetch all domain data
   const domainAnalysis = useDomainAnalysis(domain, {
     enabled: Boolean(domain),
     ...settings.defaultAnalysisOptions,
   });
-
-  const whoisData = useWhoisData(domain, Boolean(domain));
-  const rdapData = useRdapData(domain, Boolean(domain));
-  const dnsData = useDnsData(domain, Boolean(domain));
 
   if (!domain) {
     return (
@@ -73,25 +73,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
     );
   }
 
-  // Prefer combined analysis payload so a standalone /api/rdap timeout is not a hard empty state
-  const resolvedWhois = domainAnalysis.data?.whois ?? whoisData.data;
-  const resolvedRdap = domainAnalysis.data?.rdap ?? rdapData.data;
-  const resolvedDns = domainAnalysis.data?.dns ?? dnsData.data;
+  const resolvedWhois = domainAnalysis.data?.whois;
+  const resolvedRdap = domainAnalysis.data?.rdap;
+  const resolvedDns = domainAnalysis.data?.dns;
+  const metaWarnings = domainAnalysis.data?.meta?.warnings ?? [];
+  const whoisWarnings = filterWarnings(metaWarnings, 'whois');
+  const rdapWarnings = filterWarnings(metaWarnings, 'rdap');
+  const dnsWarnings = filterWarnings(metaWarnings, 'dns');
   const rdapWarning =
-    domainAnalysis.data?.meta?.warnings?.find((w) => w.toLowerCase().includes('rdap')) ||
-    (!resolvedRdap && rdapData.error
-      ? /timed out|timeout/i.test(rdapData.error.message)
-        ? 'RDAP timed out; showing WHOIS/DNS where available'
-        : 'RDAP lookup failed for this domain/TLD'
+    rdapWarnings[0] ||
+    (!resolvedRdap && domainAnalysis.data
+      ? 'RDAP lookup failed for this domain/TLD'
       : undefined);
 
-  const isLoading = domainAnalysis.isLoading || whoisData.isLoading || rdapData.isLoading || dnsData.isLoading;
-  // Standalone RDAP failure is soft when analysis or WHOIS succeeded
-  const hasError =
-    domainAnalysis.error ||
-    whoisData.error ||
-    dnsData.error ||
-    (rdapData.error && !resolvedRdap && !resolvedWhois && !domainAnalysis.data);
+  const isLoading = domainAnalysis.isLoading;
+  const hasError = !!domainAnalysis.error;
   const lastUpdated = domainAnalysis.dataUpdatedAt || Date.now();
 
   const handleRefresh = () => {
@@ -106,7 +102,8 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         whois: resolvedWhois,
         rdap: resolvedRdap,
         dns: resolvedDns,
-        security: domainAnalysis.data?.security
+        security: domainAnalysis.data?.security,
+        dateTimezone,
       };
 
       exportToJSON(exportData);
@@ -126,26 +123,21 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
   };
 
   const scrollToSection = (sectionId: string) => {
-    // First, switch to details tab
     setActiveView('details');
     
-    // Use setTimeout to ensure the tab content is rendered before scrolling
     setTimeout(() => {
       const element = document.getElementById(sectionId);
       if (element) {
-        // Calculate offset to account for fixed headers
-        const yOffset = -80; // Adjust this value based on your header height
+        const yOffset = -80;
         const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
         
         window.scrollTo({ top: y, behavior: 'smooth' });
         
-        // Add a temporary highlight effect with better styling
         element.style.transition = 'all 0.3s ease';
         element.style.transform = 'scale(1.02)';
         element.style.boxShadow = '0 4px 20px rgba(59, 130, 246, 0.3)';
         element.style.borderRadius = '8px';
         
-        // Remove the effect after animation
         setTimeout(() => {
           element.style.transform = 'scale(1)';
           element.style.boxShadow = 'none';
@@ -154,7 +146,7 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           }, 300);
         }, 1000);
       }
-    }, 150); // Increased timeout to ensure tab switching is complete
+    }, 150);
   };
 
   return (
@@ -217,13 +209,13 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
       )}
 
       {/* Warnings from analysis meta (e.g. RDAP unavailable for TLD) */}
-      {!!domainAnalysis.data?.meta?.warnings?.length && (
+      {metaWarnings.length > 0 && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertTitle>Analysis Notes</AlertTitle>
           <AlertDescription>
             <ul className="list-disc pl-4 space-y-1">
-              {domainAnalysis.data.meta.warnings.map((warning) => (
+              {metaWarnings.map((warning) => (
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
@@ -236,31 +228,34 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
         <OverviewCard
           title="WHOIS Data"
           icon={<Database className="h-4 w-4" />}
-          isLoading={whoisData.isLoading && !resolvedWhois}
-          hasError={!resolvedWhois && !!whoisData.error}
+          isLoading={isLoading && !resolvedWhois}
+          hasError={!resolvedWhois && !!domainAnalysis.error}
           data={resolvedWhois}
+          warning={whoisWarnings[0]}
           onClick={() => scrollToSection('whois-section')}
         />
         <OverviewCard
           title="RDAP Info"
           icon={<Network className="h-4 w-4" />}
-          isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
-          hasError={!resolvedRdap && !!rdapData.error && !rdapWarning}
+          isLoading={isLoading && !resolvedRdap}
+          hasError={!resolvedRdap && !!domainAnalysis.error && !rdapWarning}
           data={resolvedRdap}
+          warning={rdapWarning}
           onClick={() => scrollToSection('rdap-section')}
         />
         <OverviewCard
           title="DNS Records"
           icon={<Globe className="h-4 w-4" />}
-          isLoading={dnsData.isLoading && !resolvedDns}
-          hasError={!resolvedDns && !!dnsData.error}
+          isLoading={isLoading && !resolvedDns}
+          hasError={!resolvedDns && !!domainAnalysis.error}
           data={resolvedDns}
+          warning={dnsWarnings[0]}
           onClick={() => scrollToSection('dns-section')}
         />
         <OverviewCard
           title="Security Score"
           icon={<Shield className="h-4 w-4" />}
-          isLoading={domainAnalysis.isLoading}
+          isLoading={isLoading}
           hasError={!!domainAnalysis.error}
           data={domainAnalysis.data?.security}
           onClick={() => scrollToSection('security-section')}
@@ -283,21 +278,32 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
               data={resolvedWhois}
               rdapFallback={resolvedRdap}
               dateTimezone={dateTimezone}
-              isLoading={whoisData.isLoading && !resolvedWhois}
+              isLoading={isLoading && !resolvedWhois}
               compact
-              warning={!resolvedWhois && !resolvedRdap && whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+              warnings={whoisWarnings}
+              warning={
+                !resolvedWhois && !resolvedRdap && domainAnalysis.data
+                  ? 'WHOIS lookup failed for this domain/TLD'
+                  : undefined
+              }
             />
             <RdapPanel
               data={resolvedRdap}
               dateTimezone={dateTimezone}
-              isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
+              isLoading={isLoading && !resolvedRdap}
               compact
               warning={rdapWarning}
+              warnings={rdapWarnings}
             />
-            <DnsPanel data={resolvedDns} isLoading={dnsData.isLoading && !resolvedDns} compact />
+            <DnsPanel
+              data={resolvedDns}
+              isLoading={isLoading && !resolvedDns}
+              compact
+              warnings={dnsWarnings}
+            />
             <SecurityPanel 
               data={domainAnalysis.data?.security} 
-              isLoading={domainAnalysis.isLoading} 
+              isLoading={isLoading} 
               compact 
             />
           </div>
@@ -310,25 +316,35 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
                 data={resolvedWhois}
                 rdapFallback={resolvedRdap}
                 dateTimezone={dateTimezone}
-                isLoading={whoisData.isLoading && !resolvedWhois}
-                warning={!resolvedWhois && !resolvedRdap && whoisData.error ? 'WHOIS lookup failed for this domain/TLD' : undefined}
+                isLoading={isLoading && !resolvedWhois}
+                warnings={whoisWarnings}
+                warning={
+                  !resolvedWhois && !resolvedRdap && domainAnalysis.data
+                    ? 'WHOIS lookup failed for this domain/TLD'
+                    : undefined
+                }
               />
             </div>
             <div id="rdap-section">
               <RdapPanel
                 data={resolvedRdap}
                 dateTimezone={dateTimezone}
-                isLoading={rdapData.isLoading && !resolvedRdap && domainAnalysis.isLoading}
+                isLoading={isLoading && !resolvedRdap}
                 warning={rdapWarning}
+                warnings={rdapWarnings}
               />
             </div>
             <div id="dns-section">
-              <DnsPanel data={resolvedDns} isLoading={dnsData.isLoading && !resolvedDns} />
+              <DnsPanel
+                data={resolvedDns}
+                isLoading={isLoading && !resolvedDns}
+                warnings={dnsWarnings}
+              />
             </div>
             <div id="security-section">
               <SecurityPanel 
                 data={domainAnalysis.data?.security} 
-                isLoading={domainAnalysis.isLoading} 
+                isLoading={isLoading} 
               />
             </div>
           </div>
@@ -348,15 +364,16 @@ export default function DomainDashboard({ domain, className }: DomainDashboardPr
           <div className="space-y-4">
             <ExportPanel
               domain={domain}
+              dateTimezone={dateTimezone}
               analysisData={{
                 domain,
-                analyzedAt: new Date().toISOString(),
-                meta: {
+                analyzedAt: domainAnalysis.data?.analyzedAt || new Date().toISOString(),
+                meta: domainAnalysis.data?.meta || {
                   requestId: 'client-generated',
                   duration: 0,
                   cached: false,
                   errors: [],
-                  warnings: []
+                  warnings: metaWarnings,
                 },
                 whois: resolvedWhois,
                 rdap: resolvedRdap,
@@ -426,10 +443,11 @@ interface OverviewCardProps {
   isLoading: boolean;
   hasError: boolean;
   data?: any;
+  warning?: string;
   onClick?: () => void;
 }
 
-function OverviewCard({ title, icon, isLoading, hasError, data, onClick }: OverviewCardProps) {
+function OverviewCard({ title, icon, isLoading, hasError, data, warning, onClick }: OverviewCardProps) {
   return (
     <Card 
       className="cursor-pointer hover:shadow-md hover:scale-[1.02] transition-all duration-200 border-2 hover:border-primary/50" 
@@ -459,9 +477,23 @@ function OverviewCard({ title, icon, isLoading, hasError, data, onClick }: Overv
               <Eye className="h-3 w-3 mr-1" />
               Click to view details
             </p>
+            {warning && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1 mt-1">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span className="line-clamp-2">{warning}</span>
+              </p>
+            )}
           </div>
         ) : (
-          <div className="text-sm text-muted-foreground">No data available</div>
+          <div className="space-y-1">
+            <div className="text-sm text-muted-foreground">No data available</div>
+            {warning && (
+              <p className="text-xs text-amber-700 dark:text-amber-400 flex items-start gap-1">
+                <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                <span className="line-clamp-2">{warning}</span>
+              </p>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

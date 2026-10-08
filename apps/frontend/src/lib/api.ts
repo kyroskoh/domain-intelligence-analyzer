@@ -105,6 +105,12 @@ export interface RdapEntity {
   handle: string;
   roles: string[];
   vcardArray?: any[];
+  fn?: string;
+  org?: string;
+  email?: string;
+  tel?: string;
+  addr?: string | string[];
+  url?: string;
 }
 
 export interface RdapNameserver {

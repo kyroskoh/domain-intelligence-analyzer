@@ -65,7 +65,11 @@ export interface ContactInfo {
 // RDAP Data Structure
 export interface RdapData {
   domain: string;
+  ldhName?: string;
+  unicodeName?: string;
   handle?: string;
+  port43?: string;
+  links?: RdapLink[];
   registrar?: {
     name: string;
     url?: string;
@@ -82,6 +86,13 @@ export interface RdapData {
   raw: any;
 }
 
+export interface RdapLink {
+  href: string;
+  rel?: string;
+  type?: string;
+  title?: string;
+}
+
 export interface RdapEvent {
   eventAction: string;
   eventDate: Date;
@@ -91,6 +102,13 @@ export interface RdapEntity {
   handle: string;
   roles: string[];
   vcardArray?: any[];
+  /** Flattened from jCard (vcardArray) for API consumers / UI */
+  fn?: string;
+  org?: string;
+  email?: string;
+  tel?: string;
+  addr?: string | string[];
+  url?: string;
 }
 
 export interface RdapNameserver {

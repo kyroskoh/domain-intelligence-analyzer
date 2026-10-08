@@ -1,6 +1,6 @@
 # DomainPeek Frontend
 
-Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS panels, live DNS alerts, security scoring, and theme-aware D3 visualizations.
+Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS panels (single `/api/analyze` fetch), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
 
 **Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
 
@@ -25,7 +25,7 @@ If the backend has `API_KEY` set and you call it directly (no nginx), also set m
 
 For Docker/VPS, `./deploy.sh` auto-fills root `NEXT_PUBLIC_API_*` and passes them as image build args — see [DOCKER_DEPLOYMENT.md](../../DOCKER_DEPLOYMENT.md). Use `./deploy.sh -p nginx -k` to generate a shared `API_KEY`.
 
-Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend). Registration dates render as **DD/MMM/YYYY** with **HH:MM:SS** when time is present (UTC by default; toggle to local timezone on the dashboard).
+Behind nginx, Socket.IO uses the same public origin (`/socket.io/` → backend). Registration dates render as **DD/MMM/YYYY** with **HH:MM:SS** when time is present (UTC by default; toggle to local timezone on the dashboard). The dashboard prefers `/api/analyze` only; CSV/PDF exports include RDAP and honor the timezone toggle.
 
 ## Useful routes
 

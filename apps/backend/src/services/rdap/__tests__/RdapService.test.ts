@@ -77,7 +77,11 @@ describe('RdapService', () => {
 
     mockedAxios.get.mockResolvedValueOnce({
       data: {
+        ldhName: 'domainpeek.xyz',
+        unicodeName: 'domainpeek.xyz',
         handle: 'DOMAINPEEK.XYZ',
+        port43: 'whois.nic.xyz',
+        links: [{ href: 'https://rdap.example/domain/domainpeek.xyz', rel: 'self' }],
         status: ['active'],
         events: [{ eventAction: 'registration', eventDate: '2020-01-01T00:00:00Z' }],
         entities: [
@@ -85,19 +89,60 @@ describe('RdapService', () => {
             handle: 'REG-1',
             roles: ['registrar'],
             vcardArray: ['vcard', [['fn', {}, 'text', 'CentralNic']]],
+            links: [{ href: 'https://www.centralnic.com', rel: 'related' }],
+          },
+          {
+            handle: 'REGISTRANT-1',
+            roles: ['registrant'],
+            vcardArray: [
+              'vcard',
+              [
+                ['fn', {}, 'text', 'Jane Doe'],
+                ['org', {}, 'text', 'Acme Corp'],
+                ['email', {}, 'text', 'jane@acme.example'],
+                ['tel', { type: 'voice' }, 'uri', 'tel:+1.5550100'],
+                ['adr', {}, 'text', ['', '', '1 Main St', 'Springfield', 'IL', '62701', 'US']],
+              ],
+            ],
           },
         ],
         nameservers: [{ ldhName: 'ns1.example.net', ipAddresses: { v4: ['1.2.3.4'], v6: [] } }],
-        secureDNS: { delegationSigned: false, dsData: [] },
+        secureDNS: {
+          delegationSigned: true,
+          dsData: [
+            { keyTag: 12345, algorithm: 8, digest: 'ABCDEF', digestType: 2 },
+          ],
+        },
       },
     });
 
     const result = await service.lookup('domainpeek.xyz');
     expect(result.domain).toBe('domainpeek.xyz');
+    expect(result.ldhName).toBe('domainpeek.xyz');
+    expect(result.unicodeName).toBe('domainpeek.xyz');
+    expect(result.port43).toBe('whois.nic.xyz');
+    expect(result.links).toEqual([
+      { href: 'https://rdap.example/domain/domainpeek.xyz', rel: 'self' },
+    ]);
     expect(result.handle).toBe('DOMAINPEEK.XYZ');
     expect(result.registrar?.name).toBe('CentralNic');
+    expect(result.registrar?.url).toBe('https://www.centralnic.com');
     expect(result.nameservers[0].ldhName).toBe('ns1.example.net');
     expect(result.events[0].eventAction).toBe('registration');
+    expect(result.secureDNS?.delegationSigned).toBe(true);
+    expect(result.secureDNS?.dsRecords?.[0]).toMatchObject({
+      keyTag: 12345,
+      algorithm: 8,
+      digest: 'ABCDEF',
+      digestType: 2,
+    });
+
+    const registrant = result.entities.find((e) => e.roles.includes('registrant'));
+    expect(registrant?.fn).toBe('Jane Doe');
+    expect(registrant?.org).toBe('Acme Corp');
+    expect(registrant?.email).toBe('jane@acme.example');
+    expect(registrant?.tel).toBe('tel:+1.5550100');
+    expect(registrant?.addr).toEqual(['1 Main St', 'Springfield', 'IL', '62701', 'US']);
 
     await service.close();
   });

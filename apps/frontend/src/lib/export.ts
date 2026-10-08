@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import Papa from 'papaparse';
-import { DomainAnalysisResponse, SecurityAnalysis } from './api';
+import { SecurityAnalysis } from './api';
+import { DateDisplayTimezone, formatDisplayDate } from './utils';
 
 export type ExportFormat = 'json' | 'csv' | 'pdf';
 
@@ -11,6 +12,26 @@ export interface ExportData {
   rdap?: any;
   dns?: any;
   security?: SecurityAnalysis;
+  dateTimezone?: DateDisplayTimezone;
+}
+
+function formatExportDate(
+  value: unknown,
+  timezone: DateDisplayTimezone = 'utc'
+): string {
+  if (value == null || value === '') return 'N/A';
+  if (typeof value === 'string' || value instanceof Date) {
+    return formatDisplayDate(value, timezone) || 'N/A';
+  }
+  return String(value);
+}
+
+function formatEntityContact(entity: any): string {
+  if (!entity) return 'N/A';
+  const parts = [entity.fn, entity.org, entity.email, entity.tel]
+    .filter((p) => typeof p === 'string' && p.trim())
+    .join(' · ');
+  return parts || entity.handle || 'N/A';
 }
 
 /**
@@ -26,6 +47,7 @@ export function exportToJSON(data: ExportData): void {
  * Export domain analysis data to CSV format
  */
 export function exportToCSV(data: ExportData): void {
+  const tz = data.dateTimezone ?? 'utc';
   const rows: any[] = [];
 
   // Basic domain information
@@ -39,7 +61,7 @@ export function exportToCSV(data: ExportData): void {
   rows.push({
     category: 'Analysis',
     field: 'Timestamp',
-    value: data.timestamp,
+    value: formatExportDate(data.timestamp, tz),
     details: ''
   });
 
@@ -55,14 +77,14 @@ export function exportToCSV(data: ExportData): void {
     rows.push({
       category: 'WHOIS',
       field: 'Creation Date',
-      value: data.whois.createdDate || 'N/A',
+      value: formatExportDate(data.whois.createdDate || data.whois.creationDate, tz),
       details: ''
     });
 
     rows.push({
       category: 'WHOIS',
       field: 'Expiry Date',
-      value: data.whois.expirationDate || 'N/A',
+      value: formatExportDate(data.whois.expirationDate || data.whois.expiryDate, tz),
       details: ''
     });
 
@@ -74,6 +96,100 @@ export function exportToCSV(data: ExportData): void {
         details: ''
       });
     }
+  }
+
+  // RDAP data
+  if (data.rdap) {
+    rows.push({
+      category: 'RDAP',
+      field: 'LDH Name',
+      value: data.rdap.ldhName || data.rdap.domain || 'N/A',
+      details: ''
+    });
+
+    if (data.rdap.unicodeName) {
+      rows.push({
+        category: 'RDAP',
+        field: 'Unicode Name',
+        value: data.rdap.unicodeName,
+        details: ''
+      });
+    }
+
+    if (data.rdap.port43) {
+      rows.push({
+        category: 'RDAP',
+        field: 'WHOIS Server (port43)',
+        value: data.rdap.port43,
+        details: ''
+      });
+    }
+
+    if (data.rdap.status?.length) {
+      rows.push({
+        category: 'RDAP',
+        field: 'Status',
+        value: data.rdap.status.join(', '),
+        details: ''
+      });
+    }
+
+    data.rdap.events?.forEach((event: any) => {
+      rows.push({
+        category: 'RDAP',
+        field: `Event: ${event.eventAction || 'unknown'}`,
+        value: formatExportDate(event.eventDate, tz),
+        details: ''
+      });
+    });
+
+    data.rdap.entities?.forEach((entity: any) => {
+      rows.push({
+        category: 'RDAP',
+        field: `Entity (${(entity.roles || []).join(', ') || 'unknown'})`,
+        value: formatEntityContact(entity),
+        details: entity.handle || ''
+      });
+    });
+
+    if (data.rdap.nameservers?.length) {
+      rows.push({
+        category: 'RDAP',
+        field: 'Name Servers',
+        value: data.rdap.nameservers
+          .map((ns: any) => (typeof ns === 'string' ? ns : ns.ldhName || ns.unicodeName))
+          .filter(Boolean)
+          .join(', '),
+        details: ''
+      });
+    }
+
+    if (data.rdap.secureDNS) {
+      rows.push({
+        category: 'RDAP',
+        field: 'DNSSEC Delegation Signed',
+        value: data.rdap.secureDNS.delegationSigned ? 'Yes' : 'No',
+        details: `${data.rdap.secureDNS.dsRecords?.length || 0} DS records`
+      });
+
+      data.rdap.secureDNS.dsRecords?.forEach((ds: any, index: number) => {
+        rows.push({
+          category: 'RDAP',
+          field: `DS Record ${index + 1}`,
+          value: `keyTag=${ds.keyTag}; alg=${ds.algorithm}; digestType=${ds.digestType}`,
+          details: ds.digest || ''
+        });
+      });
+    }
+
+    data.rdap.links?.forEach((link: any) => {
+      rows.push({
+        category: 'RDAP',
+        field: `Link (${link.rel || 'related'})`,
+        value: link.href,
+        details: link.title || ''
+      });
+    });
   }
 
   // DNS data
@@ -101,7 +217,6 @@ export function exportToCSV(data: ExportData): void {
       details: `Risk Level: ${data.security.riskLevel.toUpperCase()}`
     });
 
-    // Security checks by category
     data.security.breakdown?.forEach(category => {
       rows.push({
         category: 'Security',
@@ -110,7 +225,6 @@ export function exportToCSV(data: ExportData): void {
         details: `${category.checks.length} checks`
       });
 
-      // Individual checks
       category.checks.forEach(check => {
         rows.push({
           category: `Security - ${category.category}`,
@@ -121,8 +235,7 @@ export function exportToCSV(data: ExportData): void {
       });
     });
 
-    // Recommendations
-    data.security.recommendations?.forEach((rec, index) => {
+    data.security.recommendations?.forEach((rec) => {
       rows.push({
         category: 'Recommendations',
         field: `${rec.priority.toUpperCase()} Priority`,
@@ -141,13 +254,13 @@ export function exportToCSV(data: ExportData): void {
  * Export domain analysis data to PDF format
  */
 export function exportToPDF(data: ExportData): void {
+  const tz = data.dateTimezone ?? 'utc';
   const doc = new jsPDF();
   let yPosition = 20;
   const lineHeight = 7;
   const pageHeight = doc.internal.pageSize.height;
   const margin = 20;
 
-  // Helper function to add text with automatic page breaks
   const addText = (text: string, x: number, fontSize: number = 10, isBold: boolean = false) => {
     if (yPosition > pageHeight - margin) {
       doc.addPage();
@@ -156,22 +269,23 @@ export function exportToPDF(data: ExportData): void {
     
     doc.setFontSize(fontSize);
     doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-    doc.text(text, x, yPosition);
-    yPosition += lineHeight;
+    const lines = doc.splitTextToSize(String(text), doc.internal.pageSize.width - x - margin);
+    doc.text(lines, x, yPosition);
+    yPosition += lineHeight * (Array.isArray(lines) ? lines.length : 1);
   };
 
   const addSection = (title: string, content: Record<string, any>) => {
-    yPosition += 5; // Extra spacing before sections
+    yPosition += 5;
     addText(title, 20, 14, true);
     yPosition += 2;
     
     Object.entries(content).forEach(([key, value]) => {
       if (value !== null && value !== undefined && value !== '') {
         let displayValue = value;
-        if (typeof value === 'object') {
-          displayValue = JSON.stringify(value, null, 2);
-        } else if (Array.isArray(value)) {
+        if (Array.isArray(value)) {
           displayValue = value.join(', ');
+        } else if (typeof value === 'object') {
+          displayValue = JSON.stringify(value);
         }
         
         addText(`${key}: ${displayValue}`, 25, 10);
@@ -181,18 +295,57 @@ export function exportToPDF(data: ExportData): void {
 
   // Title
   addText(`Domain Analysis Report: ${data.domain}`, 20, 18, true);
-  addText(`Generated on: ${new Date(data.timestamp).toLocaleString()}`, 20, 12);
+  addText(`Generated on: ${formatExportDate(data.timestamp, tz)}`, 20, 12);
   yPosition += 10;
 
   // WHOIS Section
   if (data.whois) {
     addSection('WHOIS Information', {
       'Registrar': data.whois.registrar?.name,
-      'Creation Date': data.whois.createdDate,
-      'Updated Date': data.whois.updatedDate,
-      'Expiry Date': data.whois.expirationDate,
+      'Creation Date': formatExportDate(data.whois.createdDate || data.whois.creationDate, tz),
+      'Updated Date': formatExportDate(data.whois.updatedDate, tz),
+      'Expiry Date': formatExportDate(data.whois.expirationDate || data.whois.expiryDate, tz),
       'Name Servers': data.whois.nameservers?.join(', '),
       'Status': data.whois.status?.join(', ')
+    });
+  }
+
+  // RDAP Section
+  if (data.rdap) {
+    const rdapInfo: Record<string, any> = {
+      'LDH Name': data.rdap.ldhName || data.rdap.domain,
+      'Unicode Name': data.rdap.unicodeName,
+      'WHOIS Server': data.rdap.port43,
+      'Status': data.rdap.status?.join(', '),
+      'Name Servers': data.rdap.nameservers
+        ?.map((ns: any) => (typeof ns === 'string' ? ns : ns.ldhName || ns.unicodeName))
+        .filter(Boolean)
+        .join(', '),
+    };
+
+    if (data.rdap.secureDNS) {
+      rdapInfo['DNSSEC'] = data.rdap.secureDNS.delegationSigned
+        ? `Signed (${data.rdap.secureDNS.dsRecords?.length || 0} DS)`
+        : 'Not signed';
+    }
+
+    addSection('RDAP Information', rdapInfo);
+
+    data.rdap.events?.slice(0, 8).forEach((event: any) => {
+      addText(
+        `${event.eventAction || 'event'}: ${formatExportDate(event.eventDate, tz)}`,
+        25,
+        10
+      );
+    });
+
+    data.rdap.entities?.slice(0, 8).forEach((entity: any) => {
+      const roles = (entity.roles || []).join(', ') || 'entity';
+      addText(`${roles}: ${formatEntityContact(entity)}`, 25, 10);
+    });
+
+    data.rdap.links?.slice(0, 5).forEach((link: any) => {
+      addText(`${link.rel || 'link'}: ${link.href}`, 25, 9);
     });
   }
 
@@ -219,7 +372,6 @@ export function exportToPDF(data: ExportData): void {
       'Identified Risks': data.security.risks?.length || 0
     });
 
-    // Security categories breakdown
     data.security.breakdown?.forEach(category => {
       addSection(`Security - ${category.category}`, {
         'Score': `${category.score}/100`,
@@ -229,7 +381,6 @@ export function exportToPDF(data: ExportData): void {
       });
     });
 
-    // Top recommendations
     if (data.security.recommendations?.length > 0) {
       yPosition += 5;
       addText('Top Recommendations:', 20, 12, true);
@@ -240,7 +391,6 @@ export function exportToPDF(data: ExportData): void {
     }
   }
 
-  // Save the PDF
   doc.save(`${data.domain}-analysis-${formatDate(data.timestamp)}.pdf`);
 }
 
@@ -251,8 +401,7 @@ export async function copyToClipboard(data: ExportData): Promise<void> {
   try {
     const jsonString = JSON.stringify(data, null, 2);
     await navigator.clipboard.writeText(jsonString);
-  } catch (error) {
-    // Fallback for older browsers
+  } catch {
     const textArea = document.createElement('textarea');
     textArea.value = JSON.stringify(data, null, 2);
     document.body.appendChild(textArea);
@@ -266,9 +415,7 @@ export async function copyToClipboard(data: ExportData): Promise<void> {
 /**
  * Generate shareable URL for analysis results
  */
-export function generateShareableURL(domain: string, data: ExportData): string {
-  // For now, return a simple URL with domain parameter
-  // In a full implementation, you'd store the data on the server and return a hash
+export function generateShareableURL(domain: string, _data: ExportData): string {
   const baseUrl = window.location.origin;
   return `${baseUrl}?domain=${encodeURIComponent(domain)}&shared=true`;
 }

@@ -4,7 +4,14 @@ import path from 'path';
 import { parse as parseDomain } from 'tldts';
 import { logger } from '@/utils/logger';
 import { TimeoutError } from '@/middleware/errorHandler';
-import { RdapData, RdapEvent, RdapEntity, RdapNameserver, DsRecord } from '@/types/domain';
+import {
+  RdapData,
+  RdapEvent,
+  RdapEntity,
+  RdapNameserver,
+  RdapLink,
+  DsRecord,
+} from '@/types/domain';
 
 const IANA_RDAP_BOOTSTRAP_URL = 'https://data.iana.org/rdap/dns.json';
 const BOOTSTRAP_REFRESH_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -262,8 +269,32 @@ export class RdapService {
       raw: data,
     };
 
+    if (data.ldhName) {
+      rdapData.ldhName = data.ldhName;
+    }
+    if (data.unicodeName) {
+      rdapData.unicodeName = data.unicodeName;
+    }
     if (data.handle) {
       rdapData.handle = data.handle;
+    }
+    if (data.port43) {
+      rdapData.port43 = data.port43;
+    }
+    if (Array.isArray(data.links)) {
+      rdapData.links = data.links
+        .filter((link: any) => link?.href)
+        .map(
+          (link: any): RdapLink => ({
+            href: link.href,
+            rel: link.rel,
+            type: link.type,
+            title: link.title,
+          })
+        );
+    }
+    if (Array.isArray(data.rdapConformance)) {
+      rdapData.rdapConformance = data.rdapConformance;
     }
 
     if (Array.isArray(data.status)) {
@@ -280,13 +311,15 @@ export class RdapService {
     }
 
     if (Array.isArray(data.entities)) {
-      rdapData.entities = data.entities.map(
-        (entity: any): RdapEntity => ({
+      rdapData.entities = data.entities.map((entity: any): RdapEntity => {
+        const vcard = this.parseVCard(entity);
+        return {
           handle: entity.handle,
           roles: entity.roles || [],
           vcardArray: entity.vcardArray,
-        })
-      );
+          ...vcard,
+        };
+      });
     }
 
     if (Array.isArray(data.nameservers)) {
@@ -322,45 +355,91 @@ export class RdapService {
     );
 
     if (registrarEntity) {
+      const vcard = this.parseVCard(registrarEntity);
       rdapData.registrar = {
-        name: this.extractEntityName(registrarEntity),
-        url: this.extractEntityUrl(registrarEntity),
+        name: vcard.fn || vcard.org || registrarEntity.handle || 'Unknown',
+        url: vcard.url || this.extractEntityUrlFromLinks(registrarEntity),
       };
     }
 
     return rdapData;
   }
 
-  private extractEntityName(entity: any): string {
-    if (entity.vcardArray && Array.isArray(entity.vcardArray)) {
-      const vcardProperties = entity.vcardArray[1];
-      if (Array.isArray(vcardProperties)) {
-        for (const property of vcardProperties) {
-          if (Array.isArray(property) && property[0] === 'fn') {
-            return property[3] || 'Unknown';
+  /**
+   * Flatten jCard (RFC 7095) properties from an RDAP entity's vcardArray.
+   */
+  private parseVCard(entity: any): {
+    fn?: string;
+    org?: string;
+    email?: string;
+    tel?: string;
+    addr?: string | string[];
+    url?: string;
+  } {
+    const result: {
+      fn?: string;
+      org?: string;
+      email?: string;
+      tel?: string;
+      addr?: string | string[];
+      url?: string;
+    } = {};
+
+    if (!entity?.vcardArray || !Array.isArray(entity.vcardArray)) {
+      return result;
+    }
+
+    const vcardProperties = entity.vcardArray[1];
+    if (!Array.isArray(vcardProperties)) {
+      return result;
+    }
+
+    for (const property of vcardProperties) {
+      if (!Array.isArray(property) || property.length < 4) {
+        continue;
+      }
+      const [name, , , value] = property;
+      if (value === undefined || value === null || value === '') {
+        continue;
+      }
+
+      switch (name) {
+        case 'fn':
+          result.fn = String(value);
+          break;
+        case 'org':
+          result.org = Array.isArray(value) ? value.filter(Boolean).join(', ') : String(value);
+          break;
+        case 'email':
+          result.email = String(value);
+          break;
+        case 'tel':
+          result.tel = String(value);
+          break;
+        case 'adr': {
+          // jCard adr value is typically an array of address components
+          if (Array.isArray(value)) {
+            const parts = value.map((p) => (p == null ? '' : String(p).trim())).filter(Boolean);
+            if (parts.length) {
+              result.addr = parts;
+            }
+          } else {
+            result.addr = String(value);
           }
-          if (Array.isArray(property) && property[0] === 'org') {
-            return property[3] || 'Unknown';
-          }
+          break;
         }
+        case 'url':
+          result.url = String(value);
+          break;
+        default:
+          break;
       }
     }
 
-    return entity.handle || 'Unknown';
+    return result;
   }
 
-  private extractEntityUrl(entity: any): string | undefined {
-    if (entity.vcardArray && Array.isArray(entity.vcardArray)) {
-      const vcardProperties = entity.vcardArray[1];
-      if (Array.isArray(vcardProperties)) {
-        for (const property of vcardProperties) {
-          if (Array.isArray(property) && property[0] === 'url') {
-            return property[3];
-          }
-        }
-      }
-    }
-
+  private extractEntityUrlFromLinks(entity: any): string | undefined {
     if (Array.isArray(entity.links)) {
       for (const link of entity.links) {
         if (link.rel === 'self' || link.rel === 'related') {
@@ -368,7 +447,6 @@ export class RdapService {
         }
       }
     }
-
     return undefined;
   }
 

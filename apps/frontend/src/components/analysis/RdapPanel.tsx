@@ -1,12 +1,12 @@
 'use client';
 
 import React from 'react';
-import { Network, Building, User, Mail, Phone, Calendar, ExternalLink } from 'lucide-react';
+import { Network, Building, User, Mail, Phone, Calendar, ExternalLink, Shield, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { RdapData } from '@/lib/api';
+import { RdapData, RdapEntity } from '@/lib/api';
 import { cn, formatDisplayDate, DateDisplayTimezone, getTimezoneLabel } from '@/lib/utils';
 
 interface RdapPanelProps {
@@ -15,6 +15,7 @@ interface RdapPanelProps {
   compact?: boolean;
   className?: string;
   warning?: string;
+  warnings?: string[];
   dateTimezone?: DateDisplayTimezone;
 }
 
@@ -24,8 +25,13 @@ export default function RdapPanel({
   compact = false,
   className,
   warning,
+  warnings,
   dateTimezone = 'utc',
 }: RdapPanelProps) {
+  const panelWarnings = [
+    ...(warning ? [warning] : []),
+    ...(warnings || []).filter((w) => w && w !== warning),
+  ];
   if (isLoading) {
     return (
       <Card className={className}>
@@ -80,11 +86,11 @@ export default function RdapPanel({
     );
   }
 
-  const renderEntity = (entity: any, index: number) => {
+  const renderEntity = (entity: RdapEntity, index: number) => {
     if (!entity) return null;
     
-    const roles = entity.roles ? entity.roles.join(', ') : 'Unknown role';
-    const name = entity.fn || entity.org || 'Unknown';
+    const roles = entity.roles?.length ? entity.roles.join(', ') : 'Unknown role';
+    const name = entity.fn || entity.org || entity.handle || 'Unknown';
     
     return (
       <div key={index} className="border rounded-lg p-3 space-y-2">
@@ -147,19 +153,29 @@ export default function RdapPanel({
         <CardDescription>
           Registration Data Access Protocol details · dates DD/MMM/YYYY (+ time when available, {getTimezoneLabel(dateTimezone)})
         </CardDescription>
+        {panelWarnings.length > 0 && (
+          <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <ul className="space-y-0.5">
+              {panelWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <div className={cn("space-y-4", compact && "space-y-3")}>
           {/* Basic Information */}
           <div className="space-y-2">
-            {data.ldhName && (
+            {(data.ldhName || data.domain) && (
               <div className="flex justify-between items-center">
                 <span className="font-medium text-muted-foreground">Domain:</span>
-                <span>{data.ldhName}</span>
+                <span>{data.ldhName || data.domain}</span>
               </div>
             )}
             
-            {data.unicodeName && data.unicodeName !== data.ldhName && (
+            {data.unicodeName && data.unicodeName !== (data.ldhName || data.domain) && (
               <div className="flex justify-between items-center">
                 <span className="font-medium text-muted-foreground">Unicode Name:</span>
                 <span>{data.unicodeName}</span>
@@ -232,6 +248,54 @@ export default function RdapPanel({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* DNSSEC / secureDNS */}
+          {data.secureDNS && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-muted-foreground flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  DNSSEC
+                </span>
+                <Badge variant={data.secureDNS.delegationSigned ? 'default' : 'secondary'}>
+                  {data.secureDNS.delegationSigned ? 'Delegation signed' : 'Not signed'}
+                </Badge>
+              </div>
+              {data.secureDNS.dsRecords && data.secureDNS.dsRecords.length > 0 && !compact && (
+                <div className="space-y-2">
+                  <span className="text-sm text-muted-foreground">DS Records:</span>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-left text-muted-foreground border-b">
+                          <th className="py-1 pr-2 font-medium">Key Tag</th>
+                          <th className="py-1 pr-2 font-medium">Alg</th>
+                          <th className="py-1 pr-2 font-medium">Digest Type</th>
+                          <th className="py-1 font-medium">Digest</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {data.secureDNS.dsRecords.map((ds, index) => (
+                          <tr key={index} className="border-b border-muted/50">
+                            <td className="py-1.5 pr-2 font-mono">{ds.keyTag}</td>
+                            <td className="py-1.5 pr-2 font-mono">{ds.algorithm}</td>
+                            <td className="py-1.5 pr-2 font-mono">{ds.digestType}</td>
+                            <td className="py-1.5 font-mono break-all">{ds.digest}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {compact && data.secureDNS.dsRecords && data.secureDNS.dsRecords.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {data.secureDNS.dsRecords.length} DS record
+                  {data.secureDNS.dsRecords.length !== 1 ? 's' : ''}
+                </p>
+              )}
             </div>
           )}
 

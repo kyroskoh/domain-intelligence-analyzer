@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Globe, Server, MapPin, Shield, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { Globe, Server, MapPin, AlertCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -14,10 +14,23 @@ interface DnsPanelProps {
   isLoading: boolean;
   compact?: boolean;
   className?: string;
+  warning?: string;
+  warnings?: string[];
 }
 
-export default function DnsPanel({ data, isLoading, compact = false, className }: DnsPanelProps) {
+export default function DnsPanel({
+  data,
+  isLoading,
+  compact = false,
+  className,
+  warning,
+  warnings,
+}: DnsPanelProps) {
   const [activeTab, setActiveTab] = useState('overview');
+  const panelWarnings = [
+    ...(warning ? [warning] : []),
+    ...(warnings || []).filter((w) => w && w !== warning),
+  ];
 
   if (isLoading) {
     return (
@@ -56,12 +69,24 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <Globe className="h-12 w-12 mx-auto mb-2" />
-            <p>No DNS data available</p>
+            <p>{warning || panelWarnings[0] || 'No DNS data available'}</p>
           </div>
         </CardContent>
       </Card>
     );
   }
+
+  const warningsNote =
+    panelWarnings.length > 0 ? (
+      <div className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+        <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+        <ul className="space-y-0.5">
+          {panelWarnings.map((w) => (
+            <li key={w}>{w}</li>
+          ))}
+        </ul>
+      </div>
+    ) : null;
 
   const renderDnsRecord = (type: string, records: string[] | any[]) => {
     if (!records || records.length === 0) return null;
@@ -166,6 +191,7 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
             </Badge>
           </div>
           <CardDescription>Domain Name System configuration</CardDescription>
+          {warningsNote}
         </CardHeader>
         <CardContent className="space-y-3">
           {primaryRecords.slice(0, 3).map(record => (
@@ -203,6 +229,7 @@ export default function DnsPanel({ data, isLoading, compact = false, className }
           </div>
         </div>
         <CardDescription>Domain Name System configuration and health</CardDescription>
+        {warningsNote}
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
