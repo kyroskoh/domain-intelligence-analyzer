@@ -17,6 +17,8 @@ ENVIRONMENT="production"
 PROFILE=""
 REBUILD=false
 PULL=false
+GENERATE_API_KEY=false
+ROTATE_API_KEY=false
 
 # Preserve original args for re-exec after docker group activation
 SCRIPT_ARGS=("$@")
@@ -54,6 +56,8 @@ OPTIONS:
     -p, --profile       Docker compose profile (redis,nginx)
     -r, --rebuild       Force rebuild images without cache
     -u, --pull         Pull latest base images before building
+    -k, --generate-api-key  Generate API_KEY if missing (root + backend .env)
+    -K, --rotate-api-key    Force a new API_KEY (overwrites existing)
     -h, --help         Show this help message
 
 ENVIRONMENT:
@@ -71,6 +75,8 @@ ENVIRONMENT:
     CERTBOT_DOMAINS     Optional comma-separated SANs (e.g. www.domainpeek.xyz).
     CLOUDFLARE_API_TOKEN  Cloudflare API token (Zone DNS Edit). Required with
                         DOMAIN_NAME + CERTBOT_EMAIL for auto TLS.
+    API_KEY             Shared secret for backend + nginx (X-API-Key). Prefer
+                        -k / -K or: npm run generate:api-key
 
 EXAMPLES:
     ./deploy.sh                                    # Basic production deployment
@@ -79,6 +85,8 @@ EXAMPLES:
     ./deploy.sh -p redis,nginx                    # Full stack with reverse proxy
     ./deploy.sh -e development -r                 # Development with rebuild
     ./deploy.sh -p nginx -u                       # Production with nginx, pull latest
+    ./deploy.sh -p nginx -k                       # Ensure API_KEY exists, then deploy
+    ./deploy.sh -p nginx -K -r                    # Rotate API_KEY and rebuild
 
 EOF
 }
@@ -184,11 +192,103 @@ env_get() {
 set_env_var() {
     local key="$1"
     local value="$2"
-    if grep -qE "^${key}=" .env 2>/dev/null; then
-        sed -i "s|^${key}=.*|${key}=${value}|" .env
-    else
-        printf '\n%s=%s\n' "$key" "$value" >> .env
+    local file="${3:-.env}"
+    if [ ! -f "$file" ]; then
+        printf '%s=%s\n' "$key" "$value" > "$file"
+        return 0
     fi
+    if grep -qE "^${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    elif grep -qE "^#\\s*${key}=" "$file" 2>/dev/null; then
+        sed -i "s|^#\\s*${key}=.*|${key}=${value}|" "$file"
+    else
+        printf '\n%s=%s\n' "$key" "$value" >> "$file"
+    fi
+}
+
+# Generate URL-safe API key (prefer node script; openssl fallback for minimal hosts)
+generate_api_key_value() {
+    if command -v node &> /dev/null && [ -f scripts/generate-api-key.mjs ]; then
+        # Extract only the API_KEY= line from script output
+        local out
+        out="$(node scripts/generate-api-key.mjs --dry-run --print 2>/dev/null | grep -E '^API_KEY=' | head -1 | cut -d= -f2-)"
+        if [ -n "$out" ]; then
+            printf '%s' "$out"
+            return 0
+        fi
+    fi
+    if command -v openssl &> /dev/null; then
+        openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n\r'
+        return 0
+    fi
+    # Last resort
+    head -c 32 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=\n\r'
+}
+
+ensure_backend_env() {
+    if [ ! -f apps/backend/.env ]; then
+        if [ -f apps/backend/.env.example ]; then
+            cp apps/backend/.env.example apps/backend/.env
+            log "Created apps/backend/.env from .env.example"
+        else
+            touch apps/backend/.env
+        fi
+    fi
+}
+
+# -k: create API_KEY if missing; -K: always rotate. Writes root + backend .env
+manage_api_key() {
+    if [ "$GENERATE_API_KEY" != true ] && [ "$ROTATE_API_KEY" != true ]; then
+        return 0
+    fi
+
+    ensure_backend_env
+
+    # Prefer the standalone Node generator when available
+    if command -v node &> /dev/null && [ -f scripts/generate-api-key.mjs ]; then
+        local gen_args=()
+        if [ "$ROTATE_API_KEY" = true ]; then
+            gen_args+=(--force)
+            log "Rotating API_KEY via scripts/generate-api-key.mjs"
+        else
+            log "Ensuring API_KEY via scripts/generate-api-key.mjs"
+        fi
+        if node scripts/generate-api-key.mjs "${gen_args[@]}"; then
+            success "API_KEY ready (root + apps/backend/.env)"
+            return 0
+        fi
+        warn "Node generator failed; falling back to shell generation"
+    fi
+
+    local existing
+    existing="$(env_get API_KEY)"
+    if [ "$ROTATE_API_KEY" != true ] && [ -n "$existing" ]; then
+        log "API_KEY already set (use -K / --rotate-api-key to rotate)"
+        # Keep backend in sync if root has a key but backend does not
+        local backend_key
+        backend_key="$(grep -E '^API_KEY=' apps/backend/.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r')"
+        if [ -z "$backend_key" ]; then
+            set_env_var API_KEY "$existing" apps/backend/.env
+            log "Synced API_KEY into apps/backend/.env"
+        fi
+        return 0
+    fi
+
+    local key
+    key="$(generate_api_key_value)"
+    if [ -z "$key" ]; then
+        error "Failed to generate API_KEY"
+    fi
+
+    set_env_var API_KEY "$key" .env
+    set_env_var API_KEY "$key" apps/backend/.env
+
+    if [ "$ROTATE_API_KEY" = true ]; then
+        success "API_KEY rotated"
+    else
+        success "API_KEY generated"
+    fi
+    log "API_KEY written to .env and apps/backend/.env (shared with nginx via compose)"
 }
 
 using_nginx_profile() {
@@ -326,12 +426,17 @@ setup_environment() {
         fi
     fi
 
+    manage_api_key
+
     ensure_cors_origins
     ensure_public_api_urls
 
     # Nginx profile mounts ./ssl — create empty dir so compose does not fail
     if using_nginx_profile; then
         mkdir -p ssl
+        if [ -z "$(env_get API_KEY)" ]; then
+            warn "nginx profile enabled but API_KEY is empty — run with -k to generate, or set API_KEY in .env"
+        fi
     fi
     
     # Verify required environment variables
@@ -467,6 +572,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         -u|--pull)
             PULL=true
+            shift
+            ;;
+        -k|--generate-api-key)
+            GENERATE_API_KEY=true
+            shift
+            ;;
+        -K|--rotate-api-key)
+            ROTATE_API_KEY=true
+            GENERATE_API_KEY=true
             shift
             ;;
         -h|--help)

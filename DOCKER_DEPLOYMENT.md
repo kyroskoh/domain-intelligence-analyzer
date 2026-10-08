@@ -39,6 +39,9 @@ cp .env.example .env
 # Optional: local npm run without Docker (both apps use .env)
 # cp apps/frontend/.env.example apps/frontend/.env
 # cp apps/backend/.env.example apps/backend/.env
+
+# Optional: generate shared API_KEY now (also done by ./deploy.sh -k)
+# npm run generate:api-key
 ```
 
 Preferred nginx profile host is `DOMAIN_NAME=domainpeek.xyz` (browser API `https://domainpeek.xyz`).
@@ -51,9 +54,13 @@ Preferred nginx profile host is `DOMAIN_NAME=domainpeek.xyz` (browser API `https
 ./deploy.sh
 
 # Public site with nginx (API origin → https://$DOMAIN_NAME)
-./deploy.sh -p nginx -r
+# -k generates API_KEY if missing (nginx injects X-API-Key + X-Request-Nonce)
+./deploy.sh -p nginx -k -r
 
-# Or manage Compose directly (set NEXT_PUBLIC_API_* in .env yourself first)
+# Rotate the shared API key and rebuild
+./deploy.sh -p nginx -K -r
+
+# Or manage Compose directly (set NEXT_PUBLIC_API_* / API_KEY in .env yourself first)
 docker compose up --build -d
 
 # Check service status
@@ -99,6 +106,10 @@ LOG_LEVEL=info
 CORS_ORIGINS=http://localhost:4000,http://frontend:4000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# Shared backend + nginx secret (prefer: ./deploy.sh -k or npm run generate:api-key)
+# When set, /api/* and Socket.IO require X-API-Key + X-Request-Nonce (/health exempt)
+# API_KEY=
 
 # Optional: Redis caching
 # REDIS_URL=redis://redis:6379
@@ -379,7 +390,13 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    - Override with `PUBLIC_API_URL=https://your.domain ./deploy.sh -p nginx -r` if auto-detect is wrong.
    - Prefer nginx (`--profile nginx`) so the site and `/api` share one public origin.
 
-6. **Docker build hangs on `apk` / Alpine (bridge networking)**
+6. **API returns 401 Unauthorized**
+   - `API_KEY` is set on the backend but the request lacks `X-API-Key` + `X-Request-Nonce`.
+   - Through nginx: ensure the same `API_KEY` is in root `.env`, rebuild/restart nginx (`./deploy.sh -p nginx -k -r`), and call the public `/api/` origin (not bare `:4001`).
+   - Local without nginx: set matching `NEXT_PUBLIC_API_KEY` or run `npm run generate:api-key -- --local`, or unset `API_KEY` to disable auth.
+   - `/health` stays open on purpose (container healthchecks).
+
+7. **Docker build hangs on `apk` / Alpine (bridge networking)**
    Host curl to Alpine can work while container egress on the Docker bridge fails (slow/`ECONNRESET` installs, `apk update` hung for minutes). On Linux hosts, set a lower Docker MTU and DNS, then restart Docker:
 
    ```bash
@@ -399,7 +416,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    timeout 60 docker run --rm node:22-alpine sh -c 'apk update && apk add --no-cache libc6-compat && echo APK_OK'
    ```
 
-7. **Network Issues**
+8. **Network Issues**
    ```bash
    # Inspect the compose project network (name includes the project directory)
    docker network ls
@@ -428,11 +445,13 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 - [ ] Change default passwords
 - [ ] Configure CORS origins properly
 - [ ] Enable rate limiting
+- [ ] Set `API_KEY` in `.env` (shared by backend + nginx; injects `X-API-Key` + `X-Request-Nonce`) — or `./deploy.sh -p nginx -k` / `-K` to generate/rotate
 - [ ] Use HTTPS with valid certificates
 - [ ] Keep base images updated
 - [ ] Run containers as non-root users
 - [ ] Configure firewall rules
 - [ ] Enable security headers in Nginx
+- [ ] Prefer not exposing `:4001` publicly when nginx profile is used (API key still required on direct hits)
 
 ### Network Security
 

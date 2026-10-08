@@ -6,6 +6,7 @@ RUN apk add --no-cache \
     certbot \
     certbot-dns-cloudflare \
     curl \
+    gettext \
     openssl
 
 COPY docker-entrypoint.sh /docker-entrypoint.sh

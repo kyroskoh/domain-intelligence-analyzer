@@ -1,0 +1,4 @@
+# Shell scripts must use LF so Linux hosts / Git Bash can execute them
+*.sh text eol=lf
+docker/nginx/docker-entrypoint.sh text eol=lf
+scripts/*.mjs text eol=lf

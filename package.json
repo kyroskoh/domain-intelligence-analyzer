@@ -35,7 +35,8 @@
     "clean": "rimraf apps/*/dist apps/*/.next apps/*/node_modules/.cache",
     "docker:build": "docker compose build",
     "docker:up": "docker compose up --build",
-    "docker:down": "docker compose down"
+    "docker:down": "docker compose down",
+    "generate:api-key": "node scripts/generate-api-key.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

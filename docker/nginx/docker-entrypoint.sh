@@ -7,14 +7,47 @@ CERTBOT_DOMAINS="${CERTBOT_DOMAINS:-}"
 CERTBOT_STAGING="${CERTBOT_STAGING:-0}"
 CERTBOT_RENEW_INTERVAL_SECONDS="${CERTBOT_RENEW_INTERVAL_SECONDS:-43200}"
 CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-}"
+# Shared with backend — injected into proxied /api/ and /socket.io/ as X-API-Key
+API_KEY="${API_KEY:-}"
 SSL_DIR="/etc/nginx/ssl"
 LE_DIR="/etc/letsencrypt"
 CF_CREDS="${LE_DIR}/cloudflare.ini"
+NGINX_TEMPLATE="${NGINX_TEMPLATE:-/etc/nginx/nginx.conf.template}"
+NGINX_CONF="${NGINX_CONF:-/etc/nginx/nginx.conf}"
 
 mkdir -p "${SSL_DIR}" "${LE_DIR}"
 
 log() {
   echo "[nginx-entrypoint] $*"
+}
+
+render_nginx_conf() {
+  # Compose mounts nginx.conf as a template; substitute API_KEY for backend auth headers.
+  local src="${NGINX_TEMPLATE}"
+  if [[ ! -f "${src}" ]]; then
+    if [[ -f /etc/nginx/nginx.conf ]]; then
+      src=/etc/nginx/nginx.conf
+    else
+      log "ERROR: nginx config template not found at ${NGINX_TEMPLATE}"
+      exit 1
+    fi
+  fi
+
+  export API_KEY
+  if command -v envsubst >/dev/null 2>&1; then
+    envsubst '${API_KEY}' < "${src}" > "${NGINX_CONF}.tmp"
+    mv "${NGINX_CONF}.tmp" "${NGINX_CONF}"
+  else
+    # Fallback if gettext is missing
+    sed "s|\${API_KEY}|${API_KEY}|g" "${src}" > "${NGINX_CONF}.tmp"
+    mv "${NGINX_CONF}.tmp" "${NGINX_CONF}"
+  fi
+
+  if [[ -n "${API_KEY}" ]]; then
+    log "Rendered nginx.conf with X-API-Key injection for /api/ and /socket.io/"
+  else
+    log "API_KEY unset — proxying without a backend API key (auth disabled on backend if also unset)"
+  fi
 }
 
 trim() {
@@ -119,6 +152,8 @@ renew_loop() {
 certbot_enabled() {
   [[ -n "${DOMAIN_NAME}" && -n "${CERTBOT_EMAIL}" && -n "${CLOUDFLARE_API_TOKEN}" ]]
 }
+
+render_nginx_conf
 
 # Prefer existing LE certs, then mounted/custom ssl, else bootstrap self-signed.
 if [[ -n "${DOMAIN_NAME}" ]] && link_letsencrypt_certs "${DOMAIN_NAME}"; then

@@ -101,11 +101,25 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     const serverUrl = resolveSocketUrl();
 
+    // Local/dev without nginx: pass key + nonce via handshake auth when NEXT_PUBLIC_API_KEY is set.
+    // Production nginx injects X-API-Key / X-Request-Nonce on the Socket.IO upgrade.
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY?.trim();
+    const auth = apiKey
+      ? {
+          apiKey,
+          nonce:
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`,
+        }
+      : undefined;
+
     socket.current = io(serverUrl, {
       transports: ['websocket', 'polling'],
       timeout: 10000,
       forceNew: false,
       path: '/socket.io/',
+      ...(auth ? { auth } : {}),
     });
 
     socket.current.on('connect', () => {

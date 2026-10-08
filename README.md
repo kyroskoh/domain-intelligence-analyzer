@@ -10,13 +10,13 @@ A production-grade web application that provides comprehensive domain analysis i
 - **WHOIS & RDAP Lookup**: Domain registration for **all IANA-listed TLDs** (legacy and new gTLDs like `.xyz`, `.fans`, `.app`, `.io`, `.ai`, …). RDAP uses the live [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json); WHOIS uses registry servers plus IANA referral. Thin or missing WHOIS fields (dates, status, NS) are filled from RDAP. Dates display as **DD/MMM/YYYY** (plus **HH:MM:SS** when the source includes a real time) in UTC by default, with a toggle for your local timezone.
 - **DNS Record Analysis**: Complete DNS resolution including A, AAAA, MX, TXT, CNAME, SOA, NS, PTR records
 - **Nameserver Health Checks**: Monitor nameserver response times and availability
-- **ASN & IP Intelligence**: Autonomous System Number and IP geolocation data
-- **User Environment Detection**: Display user's public IP, ISP, and network information
+- **ASN & IP Intelligence**: Autonomous System Number and IP geolocation (planned — Phase 3)
+- **User Environment Detection**: Client public IP / ISP display (planned — Phase 3)
 
 ### Security & Best Practices
 - **Security Scoring Engine**: Weighted scoring system (0-100) based on domain configuration
 - **DNSSEC Validation**: Check for DNS Security Extensions implementation
-- **Email Security Analysis**: SPF, DKIM, DMARC record validation
+- **Email Security Analysis**: SPF and DMARC validation today; DKIM selector discovery planned (Phase 3)
 - **SSL/TLS Integration**: Certificate analysis (planned integration with SSL Analyzer)
 - **Best Practice Recommendations**: Actionable insights for domain optimization
 
@@ -34,8 +34,8 @@ A production-grade web application that provides comprehensive domain analysis i
 
 ### Export & Sharing
 - **Multiple Export Formats**: JSON, CSV, PDF reports
-- **Share Links**: Generate temporary shareable analysis links
-- **API Access**: RESTful API for programmatic access
+- **Share Links**: Copy a search URL today; server-backed temporary shareable analysis links planned (Phase 3)
+- **API Access**: RESTful API for programmatic access (optional `API_KEY` + nginx nonce headers in production)
 - **Webhook Integration**: Planned for Phase 3 (custom alerting)
 
 ## 🏗️ Architecture
@@ -47,11 +47,13 @@ domainpeek/
 ├── apps/
 │   ├── frontend/              # Next.js 15 with React 19
 │   └── backend/               # Express.js with TypeScript
+├── scripts/
+│   └── generate-api-key.mjs   # Generate/autofill API_KEY (also ./deploy.sh -k/-K)
 ├── docker-compose.yml         # Main Docker orchestration
 ├── docker-compose.override.yml # Docker health check fixes
 ├── docker-compose.dev.yml     # Development overrides
 ├── docker/nginx/              # Custom nginx image (certbot + certbot-dns-cloudflare)
-├── nginx.conf                 # Nginx reverse proxy configuration
+├── nginx.conf                 # Nginx reverse proxy configuration (API_KEY template)
 └── deploy.sh                  # Automated deployment script
 ```
 
@@ -416,6 +418,11 @@ npm run type-check       # TypeScript type checking
 npm run docker:build     # Build Docker images
 npm run docker:up        # Start services with Docker Compose
 npm run docker:down      # Stop Docker services
+
+# Secrets
+npm run generate:api-key              # Generate API_KEY → root + backend .env
+npm run generate:api-key -- --local   # Also set NEXT_PUBLIC_API_KEY (local/dev)
+npm run generate:api-key -- --force   # Rotate existing key
 ```
 
 ## 🔧 Configuration
@@ -433,9 +440,25 @@ DNS_TIMEOUT_MS=5000
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 CORS_ORIGINS=http://localhost:4000,https://domainpeek.xyz,http://domainpeek.xyz,https://www.domainpeek.xyz,http://www.domainpeek.xyz
+# When set, /api/* and Socket.IO require X-API-Key + X-Request-Nonce (/health exempt)
+# API_KEY=
 ```
 
 RDAP lookups run in parallel with WHOIS/DNS. On timeout the server retries once per RDAP server, then soft-fails with a warning while WHOIS/DNS still return.
+
+**API key + nginx nonce:** Set the same `API_KEY` in root `.env` (passed to backend and nginx). With `./deploy.sh -p nginx`, nginx injects `X-API-Key` and a per-request `X-Request-Nonce` (`$request_id`) on `/api/` and `/socket.io/`. Direct hits to `:4001` without those headers return `401`. For local `npm run dev` without nginx, either leave `API_KEY` unset or set matching `API_KEY` (backend) and `NEXT_PUBLIC_API_KEY` (frontend, local only).
+
+Generate and autofill a key (creates `.env` from examples when missing):
+
+```bash
+npm run generate:api-key              # root + apps/backend/.env
+npm run generate:api-key -- --local   # also NEXT_PUBLIC_API_KEY for local/dev
+npm run generate:api-key -- --force   # rotate an existing key
+
+# Or during deploy (same generator / openssl fallback):
+./deploy.sh -p nginx -k              # generate API_KEY if missing
+./deploy.sh -p nginx -K -r           # rotate API_KEY and rebuild
+```
 
 **Frontend (`apps/frontend/.env`)** — see [`apps/frontend/.env.example`](apps/frontend/.env.example):
 ```env
@@ -444,9 +467,11 @@ NEXT_PUBLIC_API_BASE_URL=https://domainpeek.xyz
 NEXT_PUBLIC_API_URL=https://domainpeek.xyz
 INTERNAL_API_URL=http://localhost:4001
 NEXT_PUBLIC_APP_ENV=development
+# Local without nginx only (must match backend API_KEY). Leave unset in production.
+# NEXT_PUBLIC_API_KEY=
 ```
 
-**Root (`.env`)** — used by Docker Compose / `./deploy.sh` (see [`.env.example`](.env.example)). Prefer `./deploy.sh` for production: it merges CORS, sets `DOMAIN_NAME=domainpeek.xyz`, writes `NEXT_PUBLIC_API_*`, and bakes them into the frontend image (do not use `http://backend:4001` for browser-facing URLs).
+**Root (`.env`)** — used by Docker Compose / `./deploy.sh` (see [`.env.example`](.env.example)). Prefer `./deploy.sh` for production: it merges CORS, sets `DOMAIN_NAME=domainpeek.xyz`, writes `NEXT_PUBLIC_API_*`, and bakes them into the frontend image (do not use `http://backend:4001` for browser-facing URLs). Set `API_KEY` before enabling the nginx profile so the proxy and backend share the secret.
 
 ### Docker Configuration
 
@@ -505,6 +530,7 @@ curl http://localhost/health
 **Production notes:**
 - `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` (build args) and merges `CORS_ORIGINS`
 - Optional overrides: `PUBLIC_API_URL=...`, `PUBLIC_HOST=<ip>`
+- Set `API_KEY` in `.env` before `-p nginx` so nginx and backend share the secret (injected as `X-API-Key` + `X-Request-Nonce`)
 - Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
@@ -554,16 +580,37 @@ The application is designed to be deployed on:
 - [x] Advanced export options (multiple formats)
 - [x] Theme-aware UI components
 - [x] Network topology diagrams
-- [x] Real-time monitoring
-- [ ] Historical data tracking
-- [x] API rate limiting (Express + nginx); authentication still open
+- [x] Real-time monitoring (Socket.IO + nginx `/socket.io/`)
+- [x] WHOIS←RDAP date/status/NS enrichment + DD/MMM/YYYY (+ time) with UTC/Local toggle
+- [x] API rate limiting (Express + nginx)
+- [x] API key via nginx (`X-API-Key` + `X-Request-Nonce`); direct `:4001` rejected when `API_KEY` is set
+- [ ] Historical data tracking (persist analysis snapshots; charts currently mock history)
+- [ ] Analysis snapshot store (Redis/DB) for trends, timeline, and future share links
+- [ ] Parse RDAP entity vCards in API + UI (contacts not “Unknown”)
+- [ ] Map RDAP top-level fields (`ldhName`, `unicodeName`, `port43`, `links`)
+- [ ] Fix WHOIS expiry badge for invalid dates; format registrant contact objects
+- [ ] Export CSV/PDF include RDAP; align date formatting with UI
+- [ ] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
+- [ ] Real DNSSEC check + SRV lookup in DNS service
+- [ ] Health checks: real Redis ping + WHOIS service probe
+- [ ] Wire Redis store for Express rate limiting when Redis profile is enabled
+- [ ] Trim CORS origin list entries
+- [ ] Frontend unit tests (date utils / enrichment); fix `npm run test:frontend`
+- [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
+- [ ] Surface `secureDNS` / DS records in RDAP UI
+- [ ] Consistent `meta.warnings` on compact analysis cards
+- [ ] User JWT / multi-tenant API keys (beyond shared nginx `API_KEY`)
 
 ### Phase 3: Enterprise Features
+- [ ] ASN / IP geolocation
+- [ ] User environment detection (client public IP / ISP)
+- [ ] DKIM selector discovery
+- [ ] Server-backed temporary shareable analysis links
 - [ ] Multi-domain bulk analysis
-- [ ] Custom alerting and webhooks
+- [ ] Custom alerting and webhooks (outbound; in-app Socket.IO alerts already exist)
 - [ ] Integration with external security feeds
 - [ ] White-label deployment options
-- [ ] Advanced analytics dashboard
+- [ ] Advanced analytics dashboard (real metrics, not mock generators)
 
 ## 📄 License
 

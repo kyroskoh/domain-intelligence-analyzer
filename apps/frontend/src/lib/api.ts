@@ -323,7 +323,17 @@ class ApiClient {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        console.log(`Making ${config.method?.toUpperCase()} request to ${config.url}`);
+        // Local/dev without nginx: send key + nonce when NEXT_PUBLIC_API_KEY is set.
+        // Production behind nginx injects these server-side — leave unset in the browser.
+        const apiKey = process.env.NEXT_PUBLIC_API_KEY?.trim();
+        if (apiKey) {
+          config.headers = config.headers ?? {};
+          config.headers['X-API-Key'] = apiKey;
+          config.headers['X-Request-Nonce'] =
+            typeof crypto !== 'undefined' && crypto.randomUUID
+              ? crypto.randomUUID()
+              : `${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        }
         return config;
       },
       (error) => {

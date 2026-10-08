@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
+import { validateSocketApiKey } from '@/middleware/apiKeyAuth';
 import { logger } from '@/utils/logger';
 import LiveDnsMonitoringService from './LiveDnsMonitoringService';
 
@@ -33,14 +34,18 @@ class WebSocketService {
     // Initialize Socket.IO with CORS configuration
     this.io = new SocketIOServer(server, {
       cors: {
-        origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000'],
+        origin: (process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000'])
+          .map((o) => o.trim())
+          .filter(Boolean),
         methods: ['GET', 'POST'],
         credentials: true,
+        allowedHeaders: ['X-API-Key', 'X-Request-Nonce', 'Authorization', 'Content-Type'],
       },
       pingTimeout: 60000,
       pingInterval: 25000,
     });
 
+    this.setupAuthMiddleware();
     this.setupEventHandlers();
     this.startCleanupInterval();
     
@@ -48,6 +53,22 @@ class WebSocketService {
     this.dnsMonitoringService = new LiveDnsMonitoringService(this);
     
     logger.info('🔌 WebSocket service initialized');
+  }
+
+  private setupAuthMiddleware(): void {
+    this.io.use((socket, next) => {
+      const auth = socket.handshake.auth as { apiKey?: string; nonce?: string } | undefined;
+      const result = validateSocketApiKey(
+        socket.handshake.headers as Record<string, unknown>,
+        auth
+      );
+      if (!result.ok) {
+        logger.warn(`WebSocket auth failed for ${socket.id}: ${result.message}`);
+        next(new Error(result.message));
+        return;
+      }
+      next();
+    });
   }
 
   private setupEventHandlers(): void {

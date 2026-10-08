@@ -16,6 +16,7 @@ import { WhoisService } from '@/services/whois/WhoisService';
 
 import { errorHandler } from '@/middleware/errorHandler';
 import { notFoundHandler } from '@/middleware/notFoundHandler';
+import { apiKeyAuth } from '@/middleware/apiKeyAuth';
 import { validateDomain } from '@/middleware/validation';
 import { logger } from '@/utils/logger';
 
@@ -89,10 +90,16 @@ app.use(helmet({
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000'],
+  origin: (process.env.CORS_ORIGINS?.split(',') || ['http://localhost:4000']).map((o) => o.trim()).filter(Boolean),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'X-API-Key',
+    'X-Request-Nonce',
+  ],
 }));
 
 // Rate limiting
@@ -108,6 +115,8 @@ const limiter = rateLimit({
 });
 
 app.use('/api/', limiter);
+// When API_KEY is set, require X-API-Key + X-Request-Nonce (nginx injects these in production)
+app.use('/api/', apiKeyAuth);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
