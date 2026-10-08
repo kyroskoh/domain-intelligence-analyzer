@@ -22,11 +22,10 @@ import {
   exportToCSV, 
   exportToPDF, 
   copyToClipboard, 
-  generateShareableURL,
   ExportData,
   ExportFormat 
 } from '@/lib/export';
-import { DomainAnalysisResponse } from '@/lib/api';
+import { apiClient, DomainAnalysisResponse } from '@/lib/api';
 import { DateDisplayTimezone } from '@/lib/utils';
 
 interface ExportPanelProps {
@@ -125,23 +124,24 @@ export function ExportPanel({
 
   const handleShare = async () => {
     try {
-      const shareUrl = generateShareableURL(domain, exportData);
+      const created = await apiClient.createShareLink(domain);
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const shareUrl = `${origin}${created.path}`;
       await navigator.clipboard.writeText(shareUrl);
       setShared(true);
       
       toast({
         title: "Share Link Copied",
-        description: "Shareable link copied to clipboard.",
+        description: `Temporary link expires ${new Date(created.expiresAt).toLocaleString()}.`,
       });
       
-      // Reset shared state after 3 seconds
       setTimeout(() => setShared(false), 3000);
     } catch (error) {
       console.error('Share error:', error);
       toast({
         variant: "destructive",
         title: "Share Failed",
-        description: "Failed to generate share link. Please try again.",
+        description: "Failed to create share link (requires Redis). Analyze the domain first, then try again.",
       });
     }
   };

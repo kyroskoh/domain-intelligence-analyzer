@@ -307,6 +307,44 @@ export interface HealthStatus {
   };
 }
 
+export interface AnalysisSnapshot {
+  id: string;
+  domain: string;
+  analyzedAt: string;
+  overallScore: number;
+  dnsScore: number;
+  registrationScore: number;
+  rdapScore?: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  events: string[];
+  hasWhois: boolean;
+  hasRdap: boolean;
+  hasDns: boolean;
+  durationMs?: number;
+  security?: Pick<SecurityAnalysis, 'overallScore' | 'breakdown' | 'risks'>;
+}
+
+export interface HistoryResponse {
+  domain: string;
+  count: number;
+  snapshots: AnalysisSnapshot[];
+}
+
+export interface ShareCreateResponse {
+  token: string;
+  path: string;
+  expiresAt: string;
+  domain: string;
+  snapshotId: string;
+}
+
+export interface ShareResolveResponse {
+  token: string;
+  domain: string;
+  expiresAt: string;
+  snapshot: AnalysisSnapshot;
+}
+
 // API Client Class
 class ApiClient {
   private baseURL: string;
@@ -456,6 +494,29 @@ class ApiClient {
   async getDnsData(domain: string): Promise<DnsData> {
     const response = await this.client.get<DnsData>(`/api/dns/${encodeURIComponent(domain)}`);
     return transformDnsData(response.data);
+  }
+
+  async getHistory(domain: string, limit = 50): Promise<HistoryResponse> {
+    const response = await this.client.get<HistoryResponse>(
+      `/api/history/${encodeURIComponent(domain)}`,
+      { params: { limit } }
+    );
+    return response.data;
+  }
+
+  async createShareLink(domain: string, snapshotId?: string): Promise<ShareCreateResponse> {
+    const response = await this.client.post<ShareCreateResponse>('/api/share', {
+      domain,
+      ...(snapshotId ? { snapshotId } : {}),
+    });
+    return response.data;
+  }
+
+  async resolveShareToken(token: string): Promise<ShareResolveResponse> {
+    const response = await this.client.get<ShareResolveResponse>(
+      `/api/share/${encodeURIComponent(token)}`
+    );
+    return response.data;
   }
 }
 

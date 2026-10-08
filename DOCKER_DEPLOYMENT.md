@@ -49,19 +49,19 @@ Preferred nginx profile host is `DOMAIN_NAME=domainpeek.xyz` (browser API `https
 ### 2. Production Deployment
 
 ```bash
-# Recommended: automated deploy (installs Docker if needed).
-# Also auto-fills NEXT_PUBLIC_API_* + CORS_ORIGINS before building.
-./deploy.sh
+# Recommended (production): Nginx + Redis, generate API_KEY if missing,
+# pull latest base images, auto cache (no-cache only when cold inputs change).
+# Also auto-fills NEXT_PUBLIC_API_* + CORS_ORIGINS; installs Docker if needed.
+./deploy.sh -p default -k -u
 
-# Public site with nginx (API origin → https://$DOMAIN_NAME)
-# -k generates API_KEY if missing (nginx injects X-API-Key + Bearer + X-Request-Nonce)
-./deploy.sh -p nginx -k -r
-
-# Rotate the shared API key and rebuild
-./deploy.sh -p nginx -K -r
+# Other common variants
+./deploy.sh                         # core: frontend + backend
+./deploy.sh -p redis                # + Redis
+./deploy.sh -p nginx -k             # + Nginx only
+./deploy.sh -p default -K -r        # rotate API_KEY + cold rebuild
 
 # Or manage Compose directly (set NEXT_PUBLIC_API_* / API_KEY in .env yourself first)
-docker compose up --build -d
+docker compose --profile default up --build -d
 
 # Check service status
 docker compose ps
@@ -116,21 +116,28 @@ RATE_LIMIT_MAX_REQUESTS=100
 # When set, /api/* and Socket.IO require API key (X-API-Key or Bearer) + X-Request-Nonce (/health exempt)
 # API_KEY=
 
-# Redis (included in the default stack)
+# Redis (used with -p redis or -p default; ./deploy.sh autofills when missing)
 REDIS_URL=redis://redis:6379
-# REDIS_PASSWORD=your_password   # if set, use redis://:password@redis:6379
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_TTL_SECONDS=3600
+SNAPSHOT_TTL_SECONDS=2592000
+SHARE_TTL_SECONDS=604800
+# REDIS_PASSWORD=your_password   # backend merges into REDIS_URL if URL has no auth
 
-# Optional: enable nginx profile without CLI flags
+# Optional: enable profiles without CLI flags
+# COMPOSE_PROFILES=redis
 # COMPOSE_PROFILES=nginx
+# COMPOSE_PROFILES=default
 ```
 
 **Public VPS / remote browser access:** `./deploy.sh` auto-writes `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_API_URL` before building the frontend image:
 
 | Deploy mode | Auto-filled browser API origin |
 |-------------|-------------------------------|
-| `./deploy.sh -p nginx` | `https://$DOMAIN_NAME` (default `https://domainpeek.xyz`) |
-| `./deploy.sh` (no nginx) | `http://<detected-ip>:4001` |
-| Override | `PUBLIC_API_URL=https://example.com ./deploy.sh -p nginx -r` |
+| `./deploy.sh -p nginx` or `-p default` | `https://$DOMAIN_NAME` (default `https://domainpeek.xyz`) |
+| `./deploy.sh` / `-p redis` (no nginx) | `http://<detected-ip>:4001` |
+| Override | `PUBLIC_API_URL=https://example.com ./deploy.sh -p default -r` |
 
 Do **not** use `http://backend:4001` for those variables — that hostname only resolves inside the Docker network. They are passed as Docker **build args**; changing them in a running container alone has no effect — rebuild (`-r`) after a change.
 
@@ -138,23 +145,42 @@ Do **not** use `http://backend:4001` for those variables — that hostname only 
 
 ### Service Profiles
 
-A plain `docker compose up --build` starts `frontend`, `backend`, and `redis`. Nginx is **opt-in**.
+A plain `docker compose up --build` starts **core** services only (`frontend` + `backend`). Redis and Nginx are **opt-in profiles**.
+
+| Profile | Starts |
+|---------|--------|
+| *(none)* | frontend, backend |
+| `redis` | + Redis |
+| `nginx` | + Nginx |
+| `default` | + Nginx + Redis |
 
 ```bash
-# Default stack (frontend + backend + Redis)
-docker compose up --build -d
+# Recommended: full stack (nginx + redis) + API key + pull base images + auto cache
+mkdir -p ssl   # nginx mounts ./ssl; create before first -p default|-p nginx run
+./deploy.sh -p default -k -u
 
-# Enable Nginx reverse proxy (create ./ssl first — compose mounts it rw)
+# Core stack
+docker compose up --build -d
+./deploy.sh
+
+# Redis only (cache / rate-limit / snapshots / share links)
+docker compose --profile redis up --build -d
+./deploy.sh -p redis
+
+# Nginx reverse proxy (create ./ssl first — compose mounts it rw)
 # For Let's Encrypt + Cloudflare, also set DOMAIN_NAME, CERTBOT_EMAIL,
 # CLOUDFLARE_API_TOKEN (and optional CERTBOT_DOMAINS) in .env — see SSL section.
-mkdir -p ssl
 docker compose --profile nginx up --build -d
+./deploy.sh -p nginx -k
 
-# Or via deploy.sh
-./deploy.sh --profile nginx
+# Full stack via Compose (same services as -p default; no -k/-u helpers)
+docker compose --profile default up --build -d
+# equivalent:
+./deploy.sh -p nginx -p redis
+docker compose --profile nginx --profile redis up --build -d
 ```
 
-With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Ports 4000/4001 remain available for direct access unless you close them in the firewall.
+With the `nginx` or `default` profile, open the app on port **80** (`http://YOUR_HOST/`). Ports 4000/4001 remain available for direct access unless you close them in the firewall.
 
 ## Service Architecture
 
@@ -172,14 +198,14 @@ With the `nginx` profile, open the app on port **80** (`http://YOUR_HOST/`). Por
    - Port: 4000
    - Health check: `/api/health`
 
-3. **Redis** (`redis`)
+### Optional Services (profiles)
+
+3. **Redis** (`redis`) — profiles: `redis`, `default`
    - Persistent cache (`appendonly yes`, volume `redis-data`)
    - Port: 6379
-   - Included in the default stack
+   - Backend uses memory fallback when Redis is not started
 
-### Optional Services
-
-4. **Nginx** (`nginx`)
+4. **Nginx** (`nginx`) — profiles: `nginx`, `default`
    - Reverse proxy (`/` → frontend; `/api/`, `/health`, and `/socket.io/` → backend)
    - `/socket.io/` must hit the backend (WebSocket upgrade + long `proxy_read_timeout`)
      so live DNS monitoring works when `NEXT_PUBLIC_API_*` is the public site origin
@@ -202,27 +228,33 @@ Both frontend and backend use multi-stage builds based on `node:22-alpine`:
 - `builder` - Build stage
 - `runner` - Production runtime
 
-After dependency or security bumps (for example Next.js 15.5.27 / Express 4.22.x patches in the lockfile), rebuild without cache so images pick up the new `package-lock.json`.
-
-Compose reads `DOCKER_BUILD_NO_CACHE` / `DOCKER_BUILD_PULL` on each service `build:` block:
+`./deploy.sh` **auto-detects** cache vs no-cache (default). Compose reads `DOCKER_BUILD_NO_CACHE` / `DOCKER_BUILD_PULL` on each service `build:` block.
 
 | Trigger | Effect |
 |---------|--------|
-| `./deploy.sh -r` | Sets `DOCKER_BUILD_NO_CACHE=true` (cold rebuild) |
-| `./deploy.sh -u` | Sets `DOCKER_BUILD_PULL=true` (refresh `FROM` base images) |
-| Lockfile / Dockerfile / compose change | Auto no-cache vs last `.docker-build-fingerprint` |
-| Source-only edits | Normal layer cache with `docker compose up --build` |
+| *(default)* auto | No-cache only when **cold inputs** change vs `.docker-build-fingerprint` |
+| Cold inputs change | Dockerfile / `package.json` / lockfile / `docker/nginx/*` / compose files → `DOCKER_BUILD_NO_CACHE=true` |
+| Soft inputs change | `NEXT_PUBLIC_API_*`, profiles, `DOMAIN_NAME` → **cached** rebuild (Docker invalidates ARG/COPY layers) |
+| Source-only edits | Cached `docker compose up --build` |
+| `./deploy.sh -r` / `--no-cache` | Force cold rebuild |
+| `./deploy.sh -c` / `--cache` | Force layer cache (even if cold inputs changed) |
+| `./deploy.sh -u` | `DOCKER_BUILD_PULL=true` (refresh `FROM` base images) |
+| `DOCKER_BUILD_NO_CACHE=true` env | Same as `-r` when mode is auto |
 
 ```bash
-# Via deploy (preferred)
-./deploy.sh -r
-# or: ./deploy.sh -p nginx -r -u
+# Recommended deploy (auto cache + pull bases)
+./deploy.sh -p default -k -u
+
+# Force cold rebuild (e.g. after a bad layer / security bump you want fully clean)
+./deploy.sh -p default -k --no-cache -u
+
+# Force cache (skip auto no-cache)
+./deploy.sh -p default -c
 
 # Manual
 DOCKER_BUILD_NO_CACHE=true docker compose build
 docker compose up -d
 # equivalent: npm run docker:build:nocache
-# or: docker compose build --no-cache && docker compose up -d
 ```
 
 ### Image Sizes (Approximate)
@@ -243,28 +275,36 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 # Access:
 # - Frontend: http://localhost:4000  
 # - Backend API: http://localhost:4001
-# - Redis: localhost:6379
 # - API Docs: http://localhost:4001/docs
+# Add Redis: append --profile redis (or use ./deploy.sh -e development -p redis)
 ```
 
 ### 2. Production (Basic)
 
 ```bash
-# Production build with health checks (frontend + backend + Redis)
+# Production build with health checks (frontend + backend)
 docker compose up --build -d
+# + Redis:
+docker compose --profile redis up --build -d
 
 # Access:
 # - Application: http://localhost:4000
 # - API: http://localhost:4001
-# - Redis: localhost:6379
+# - Redis: localhost:6379 (with redis|default profile)
 ```
 
-### 3. Production with Nginx
+### 3. Production with Nginx (+ optional Redis)
 
 ```bash
-# Full stack with reverse proxy
+# Nginx only
 export COMPOSE_PROFILES=nginx
 docker compose up --build -d
+# or: ./deploy.sh -p nginx
+
+# Full stack (nginx + redis)
+export COMPOSE_PROFILES=default
+docker compose up --build -d
+# or: ./deploy.sh -p default
 
 # Access:
 # - Application: http://localhost (port 80)
@@ -447,7 +487,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
    - Use specific base image tags
 
 3. **Caching**
-   - Redis is included by default for API caching
+   - Enable Redis with `-p redis` or `-p default` for API caching / rate-limit / snapshots
    - Configure Nginx caching for static assets
 
 ## Security Considerations
@@ -456,7 +496,7 @@ docker stats domain-analyzer-frontend domain-analyzer-backend
 
 - [ ] Change default passwords
 - [ ] Configure CORS origins properly
-- [ ] Enable rate limiting
+- [x] Enable rate limiting
 - [ ] Set `API_KEY` in `.env` (shared by backend + nginx; injects `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`) — or `./deploy.sh -p nginx -k` / `-K` to generate/rotate
 - [ ] Use HTTPS with valid certificates
 - [ ] Keep base images updated
@@ -526,7 +566,9 @@ docker system prune -af
 
 ### Redis Configuration
 
-Redis is included in the default stack (`REDIS_URL=redis://redis:6379`). Optional password: set `REDIS_PASSWORD` and use `REDIS_URL=redis://:password@redis:6379`.
+Redis is opt-in via `-p redis` or `-p default` (`REDIS_URL=redis://redis:6379`). `./deploy.sh` autofills `REDIS_*`, `SNAPSHOT_TTL_SECONDS`, and `SHARE_TTL_SECONDS` when missing. Optional password: set `REDIS_PASSWORD` (backend merges into the URL) or use `REDIS_URL=redis://:password@redis:6379`.
+
+API extras backed by Redis: `GET /api/history/:domain`, `POST /api/share`, `GET /api/share/:token`, Express rate-limit store, and `/health` Redis ping. Without the Redis profile the API still runs (memory cache / empty history).
 
 1. Add custom redis.conf
 2. Mount in docker-compose.yml:

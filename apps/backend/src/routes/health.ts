@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '@/utils/logger';
+import { isRedisConfigured, pingRedis } from '@/services/cache/redisClient';
 
 const router = Router();
 
@@ -119,7 +120,7 @@ router.get('/', async (req: Request, res: Response) => {
       status: overallStatus,
       timestamp: new Date().toISOString(),
       uptime: Math.floor(process.uptime()),
-      version: process.env.npm_package_version || '1.0.0',
+      version: process.env.npm_package_version || '1.0.3',
       environment: process.env.NODE_ENV || 'development',
       services,
       system: {
@@ -235,14 +236,12 @@ router.get('/readiness', async (req: Request, res: Response) => {
 // Helper functions
 async function checkRedisHealth(): Promise<'connected' | 'disconnected' | 'unavailable'> {
   try {
-    // TODO: Implement Redis health check when Redis service is added
-    // For now, return 'unavailable' if Redis URL is not configured
-    if (!process.env.REDIS_URL) {
+    if (!isRedisConfigured()) {
       return 'unavailable';
     }
-    
-    // Placeholder for actual Redis ping
-    return 'connected';
+
+    const ok = await pingRedis();
+    return ok ? 'connected' : 'disconnected';
   } catch (error) {
     logger.warn('Redis health check failed:', error);
     return 'disconnected';

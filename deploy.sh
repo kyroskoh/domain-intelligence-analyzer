@@ -15,7 +15,11 @@ NC='\033[0m' # No Color
 # Default values
 ENVIRONMENT="production"
 PROFILE=""
-REBUILD=false
+# Build cache mode: auto | cache | nocache
+#   auto    — no-cache only when cold build inputs change (lockfiles/Dockerfiles/…)
+#   cache   — always use layer cache (-c / --cache)
+#   nocache — always cold rebuild (-r / --rebuild / --no-cache)
+CACHE_MODE="auto"
 PULL=false
 GENERATE_API_KEY=false
 ROTATE_API_KEY=false
@@ -46,16 +50,23 @@ success() {
 }
 
 show_help() {
-    cat << EOF
+    cat <<'EOF'
 DomainPeek - Docker Deployment Script
 
 Usage: ./deploy.sh [OPTIONS]
 
 OPTIONS:
     -e, --environment    Environment (production|development) [default: production]
-    -p, --profile       Docker compose profile (nginx)
-    -r, --rebuild       Force rebuild images without cache
-                        (sets DOCKER_BUILD_NO_CACHE=true in compose)
+    -p, --profile       Compose profile (repeatable or comma-separated):
+                          nginx   — reverse proxy (+ TLS helpers)
+                          redis   — Redis cache / rate-limit / snapshots / share
+                          default — nginx + redis together
+                        Examples: -p nginx  |  -p redis  |  -p default
+                                  -p nginx -p redis  |  -p nginx,redis
+    -r, --rebuild, --no-cache
+                        Force cold rebuild (DOCKER_BUILD_NO_CACHE=true)
+    -c, --cache         Force layer cache even if cold inputs changed
+                        Default without -r/-c: auto-detect (see BUILD CACHE)
     -u, --pull         Pull latest base images before building
                         (sets DOCKER_BUILD_PULL=true in compose)
     -k, --generate-api-key  Generate API_KEY if missing (root + backend .env)
@@ -69,7 +80,7 @@ ENVIRONMENT:
                         Always also merges domainpeek.xyz (http/https + www).
     PUBLIC_API_URL      Optional full override for NEXT_PUBLIC_API_* (browser
                         API origin baked into the frontend at build time).
-                        Default: https://$DOMAIN_NAME with -p nginx, else
+                        Default: https://$DOMAIN_NAME with -p nginx|default, else
                         http://$PUBLIC_HOST:4001 (or http://localhost:4001).
     DOMAIN_NAME         Primary hostname for nginx Let's Encrypt (Cloudflare DNS-01).
                         Also used as the https:// origin for NEXT_PUBLIC_API_*.
@@ -79,15 +90,28 @@ ENVIRONMENT:
                         DOMAIN_NAME + CERTBOT_EMAIL for auto TLS.
     API_KEY             Shared secret for backend + nginx (X-API-Key + Bearer). Prefer
                         -k / -K or: npm run generate:api-key
+    COMPOSE_PROFILES    Alternative to -p (e.g. COMPOSE_PROFILES=default)
+
+BUILD CACHE (auto by default):
+    Cold rebuild (no-cache) when these change vs .docker-build-fingerprint:
+      Dockerfiles, package.json / package-lock.json, docker/nginx/*, compose files
+    Cached rebuild (--build) for source edits and NEXT_PUBLIC_API_* changes
+      (Docker invalidates layers from changed COPY/ARG onward)
+    Overrides: -r/--no-cache  |  -c/--cache  |  DOCKER_BUILD_NO_CACHE=true
 
 EXAMPLES:
-    ./deploy.sh                                    # Production (frontend + backend + Redis)
+    # Recommended (production): Nginx + Redis, API key, pull base images, auto cache
+    ./deploy.sh -p default -k -u
+
+    ./deploy.sh                                    # Core only (frontend + backend)
+    ./deploy.sh -p redis                           # Core + Redis
+    ./deploy.sh -p nginx                           # Core + Nginx
+    ./deploy.sh -p default                         # Core + Nginx + Redis (no -k/-u)
+    ./deploy.sh -p nginx -p redis                  # Same as -p default
     ./deploy.sh -e development                     # Development with hot reload
-    ./deploy.sh -p nginx                          # Full stack with reverse proxy
-    ./deploy.sh -e development -r                 # Development with rebuild
-    ./deploy.sh -p nginx -u                       # Production with nginx, pull latest
-    ./deploy.sh -p nginx -k                       # Ensure API_KEY exists, then deploy
-    ./deploy.sh -p nginx -K -r                    # Rotate API_KEY and rebuild
+    ./deploy.sh -r                                 # Force no-cache rebuild
+    ./deploy.sh -c                                 # Force cached rebuild
+    ./deploy.sh -p default -K -r                   # Rotate API_KEY and cold rebuild
 
 EOF
 }
@@ -237,6 +261,46 @@ ensure_backend_env() {
     fi
 }
 
+# Fill missing Redis defaults for the default Compose stack (never overwrite set values)
+ensure_redis_env() {
+    ensure_backend_env
+
+    local filled=0
+    ensure_redis_key() {
+        local key="$1"
+        local value="$2"
+        local file="$3"
+        local current=""
+        if [ -f "$file" ]; then
+            current="$(grep -E "^${key}=" "$file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '\r' | sed -e 's/^"//' -e 's/"$//' -e "s/^'//" -e "s/'$//")"
+        fi
+        if [ -z "$current" ]; then
+            set_env_var "$key" "$value" "$file"
+            filled=1
+        fi
+    }
+
+    # Root .env (docker compose)
+    ensure_redis_key REDIS_URL "redis://redis:6379" .env
+    ensure_redis_key REDIS_HOST "redis" .env
+    ensure_redis_key REDIS_PORT "6379" .env
+    ensure_redis_key REDIS_TTL_SECONDS "3600" .env
+    ensure_redis_key SNAPSHOT_TTL_SECONDS "2592000" .env
+    ensure_redis_key SHARE_TTL_SECONDS "604800" .env
+
+    # Backend .env (same Docker defaults; local npm can override to localhost)
+    ensure_redis_key REDIS_URL "redis://redis:6379" apps/backend/.env
+    ensure_redis_key REDIS_HOST "redis" apps/backend/.env
+    ensure_redis_key REDIS_PORT "6379" apps/backend/.env
+    ensure_redis_key REDIS_TTL_SECONDS "3600" apps/backend/.env
+    ensure_redis_key SNAPSHOT_TTL_SECONDS "2592000" apps/backend/.env
+    ensure_redis_key SHARE_TTL_SECONDS "604800" apps/backend/.env
+
+    if [ "$filled" -eq 1 ]; then
+        log "Redis env defaults applied (REDIS_URL=redis://redis:6379)"
+    fi
+}
+
 # -k: create API_KEY if missing; -K: always rotate. Writes root + backend .env
 manage_api_key() {
     if [ "$GENERATE_API_KEY" != true ] && [ "$ROTATE_API_KEY" != true ]; then
@@ -292,8 +356,60 @@ manage_api_key() {
     log "API_KEY written to .env and apps/backend/.env (shared with nginx via compose)"
 }
 
+# Active profiles come from -p / COMPOSE_PROFILES (comma-separated).
+active_profiles() {
+    local combined="${PROFILE:-}"
+    if [ -n "${COMPOSE_PROFILES:-}" ]; then
+        if [ -n "$combined" ]; then
+            combined="${combined},${COMPOSE_PROFILES}"
+        else
+            combined="${COMPOSE_PROFILES}"
+        fi
+    fi
+    printf '%s' "$combined"
+}
+
+profile_enabled() {
+    local needle="$1"
+    local haystack
+    haystack="$(active_profiles)"
+    [[ ",${haystack}," == *",${needle},"* ]]
+}
+
 using_nginx_profile() {
-    [[ "${PROFILE}" == *"nginx"* ]] || [[ "${COMPOSE_PROFILES:-}" == *"nginx"* ]]
+    profile_enabled nginx || profile_enabled default
+}
+
+using_redis_profile() {
+    profile_enabled redis || profile_enabled default
+}
+
+# Normalize PROFILE into COMPOSE_PROFILES (dedupe, trim).
+resolve_compose_profiles() {
+    local raw
+    raw="$(active_profiles)"
+    if [ -z "$raw" ]; then
+        return 0
+    fi
+
+    local -a parts=()
+    local -A seen=()
+    local IFS=','
+    local p
+    for p in $raw; do
+        p="$(printf '%s' "$p" | tr -d '[:space:]')"
+        [ -z "$p" ] && continue
+        if [ -z "${seen[$p]:-}" ]; then
+            seen[$p]=1
+            parts+=("$p")
+        fi
+    done
+
+    if [ "${#parts[@]}" -gt 0 ]; then
+        local IFS=','
+        PROFILE="${parts[*]}"
+        export COMPOSE_PROFILES="$PROFILE"
+    fi
 }
 
 # Derive browser-facing API origin and write NEXT_PUBLIC_API_* into .env (build-time).
@@ -429,6 +545,7 @@ setup_environment() {
 
     manage_api_key
 
+    ensure_redis_env
     ensure_cors_origins
     ensure_public_api_urls
 
@@ -450,9 +567,44 @@ setup_environment() {
     success "Environment setup completed"
 }
 
-# Fingerprint of inputs that often need a cold rebuild (lockfiles / Dockerfiles).
-# Source edits alone are handled by normal layer cache with --build.
-build_input_fingerprint() {
+FINGERPRINT_FILE=".docker-build-fingerprint"
+
+# Hash file contents (or a string). Empty input → "empty".
+hash_payload() {
+    if command -v sha256sum &> /dev/null; then
+        sha256sum | awk '{print $1}'
+    elif command -v shasum &> /dev/null; then
+        shasum -a 256 | awk '{print $1}'
+    else
+        # Portable weak fallback
+        cksum | awk '{print $1"-"$2}'
+    fi
+}
+
+hash_files() {
+    local existing=()
+    local f
+    for f in "$@"; do
+        [ -f "$f" ] && existing+=("$f")
+    done
+    if [ ${#existing[@]} -eq 0 ]; then
+        printf 'none'
+        return
+    fi
+    # Path + content so renames/moves also change the digest
+    {
+        local p
+        for p in "${existing[@]}"; do
+            printf '%s\0' "$p"
+            cat "$p"
+            printf '\0'
+        done
+    } | hash_payload
+}
+
+# Inputs that warrant a cold rebuild (deps / image recipe).
+# Source-only edits use Docker layer cache via `docker compose up --build`.
+cold_build_files() {
     local files=(
         apps/backend/package.json
         apps/backend/package-lock.json
@@ -461,52 +613,112 @@ build_input_fingerprint() {
         apps/frontend/package-lock.json
         apps/frontend/Dockerfile
         docker/nginx/Dockerfile
+        docker/nginx/docker-entrypoint.sh
         docker-compose.yml
         docker-compose.dev.yml
+        docker-compose.override.yml
+        package.json
+        package-lock.json
     )
-    local existing=()
     local f
     for f in "${files[@]}"; do
-        [ -f "$f" ] && existing+=("$f")
+        [ -f "$f" ] && printf '%s\n' "$f"
     done
-    if [ ${#existing[@]} -eq 0 ]; then
-        echo "none"
-        return
-    fi
-    # Prefer sha256sum (Linux); fall back to shasum (macOS)
-    if command -v sha256sum &> /dev/null; then
-        cat "${existing[@]}" | sha256sum | awk '{print $1}'
-    elif command -v shasum &> /dev/null; then
-        cat "${existing[@]}" | shasum -a 256 | awk '{print $1}'
-    else
-        # Last resort: sizes + mtimes (still detects most changes)
-        stat -c '%n %s %Y' "${existing[@]}" 2>/dev/null || stat -f '%N %z %m' "${existing[@]}"
-    fi
 }
 
-FINGERPRINT_FILE=".docker-build-fingerprint"
-
-# Enable compose no_cache/pull when -r/-u or when build inputs changed since last deploy.
-configure_build_cache() {
-    local current
-    current="$(build_input_fingerprint)"
-    local previous=""
-    if [ -f "$FINGERPRINT_FILE" ]; then
-        previous="$(tr -d '[:space:]' < "$FINGERPRINT_FILE")"
+cold_build_fingerprint() {
+    local -a files=()
+    local line
+    while IFS= read -r line; do
+        [ -n "$line" ] && files+=("$line")
+    done < <(cold_build_files)
+    if [ ${#files[@]} -eq 0 ]; then
+        printf 'none'
+        return
     fi
+    hash_files "${files[@]}"
+}
 
-    if [ "$REBUILD" = true ]; then
+# Soft inputs: ARG / profile / env changes → cached rebuild is enough.
+soft_build_fingerprint() {
+    {
+        printf 'ENV=%s\n' "${ENVIRONMENT:-production}"
+        printf 'PROFILES=%s\n' "$(active_profiles)"
+        printf 'NEXT_PUBLIC_API_BASE_URL=%s\n' "$(env_get NEXT_PUBLIC_API_BASE_URL)"
+        printf 'NEXT_PUBLIC_API_URL=%s\n' "$(env_get NEXT_PUBLIC_API_URL)"
+        printf 'DOMAIN_NAME=%s\n' "$(env_get DOMAIN_NAME)"
+        # nginx.conf is mounted at runtime; still track it for status clarity
+        if [ -f nginx.conf ]; then
+            printf 'nginx.conf='
+            hash_files nginx.conf
+            printf '\n'
+        fi
+    } | hash_payload
+}
+
+read_fingerprint_field() {
+    local key="$1"
+    local file="${2:-$FINGERPRINT_FILE}"
+    if [ ! -f "$file" ]; then
+        return 0
+    fi
+    # Support legacy single-hash files (treated as cold=)
+    if ! grep -q '=' "$file" 2>/dev/null; then
+        if [ "$key" = "cold" ]; then
+            tr -d '[:space:]' < "$file"
+        fi
+        return 0
+    fi
+    grep -E "^${key}=" "$file" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '[:space:]'
+}
+
+# Decide DOCKER_BUILD_NO_CACHE from CACHE_MODE + fingerprints.
+configure_build_cache() {
+    local cold_now soft_now cold_prev soft_prev
+    cold_now="$(cold_build_fingerprint)"
+    soft_now="$(soft_build_fingerprint)"
+    cold_prev="$(read_fingerprint_field cold)"
+    soft_prev="$(read_fingerprint_field soft)"
+
+    local reason=""
+    local use_nocache=false
+
+    case "$CACHE_MODE" in
+        nocache)
+            use_nocache=true
+            reason="forced by -r/--no-cache"
+            ;;
+        cache)
+            use_nocache=false
+            reason="forced by -c/--cache"
+            ;;
+        auto|*)
+            if [ -n "${DOCKER_BUILD_NO_CACHE:-}" ] && [ "${DOCKER_BUILD_NO_CACHE}" = "true" ]; then
+                use_nocache=true
+                reason="DOCKER_BUILD_NO_CACHE=true in environment"
+            elif [ -z "$cold_prev" ]; then
+                use_nocache=false
+                reason="no prior fingerprint — using layer cache (pass -r for a cold build)"
+            elif [ "$cold_now" != "$cold_prev" ]; then
+                use_nocache=true
+                reason="cold inputs changed (Dockerfile/lockfile/compose/nginx image)"
+            else
+                use_nocache=false
+                if [ -n "$soft_prev" ] && [ "$soft_now" != "$soft_prev" ]; then
+                    reason="build args/profiles changed — cached rebuild (Docker invalidates ARG/COPY layers)"
+                else
+                    reason="cold inputs unchanged — using layer cache"
+                fi
+            fi
+            ;;
+    esac
+
+    if [ "$use_nocache" = true ]; then
         export DOCKER_BUILD_NO_CACHE=true
-        log "Forced rebuild: DOCKER_BUILD_NO_CACHE=true"
-    elif [ -z "$previous" ]; then
-        log "No prior build fingerprint — using layer cache (pass -r for a cold build)"
-    elif [ "$current" != "$previous" ]; then
-        export DOCKER_BUILD_NO_CACHE=true
-        REBUILD=true
-        log "Build inputs changed (lockfile/Dockerfile/compose) — enabling no-cache rebuild"
+        log "Build cache: NO-CACHE ($reason)"
     else
-        export DOCKER_BUILD_NO_CACHE="${DOCKER_BUILD_NO_CACHE:-false}"
-        log "Build inputs unchanged — using layer cache"
+        export DOCKER_BUILD_NO_CACHE=false
+        log "Build cache: CACHE ($reason)"
     fi
 
     if [ "$PULL" = true ]; then
@@ -516,13 +728,17 @@ configure_build_cache() {
         export DOCKER_BUILD_PULL="${DOCKER_BUILD_PULL:-false}"
     fi
 
-    # Stash for save after a successful build
-    BUILD_INPUT_FINGERPRINT="$current"
+    BUILD_INPUT_FINGERPRINT_COLD="$cold_now"
+    BUILD_INPUT_FINGERPRINT_SOFT="$soft_now"
 }
 
 save_build_fingerprint() {
-    if [ -n "${BUILD_INPUT_FINGERPRINT:-}" ]; then
-        printf '%s\n' "$BUILD_INPUT_FINGERPRINT" > "$FINGERPRINT_FILE"
+    if [ -n "${BUILD_INPUT_FINGERPRINT_COLD:-}" ]; then
+        {
+            printf 'cold=%s\n' "$BUILD_INPUT_FINGERPRINT_COLD"
+            printf 'soft=%s\n' "${BUILD_INPUT_FINGERPRINT_SOFT:-}"
+            printf 'saved_at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"
+        } > "$FINGERPRINT_FILE"
     fi
 }
 
@@ -539,10 +755,11 @@ build_images() {
         log "Using development configuration"
     fi
     
-    # Set profiles
-    if [ -n "$PROFILE" ]; then
-        export COMPOSE_PROFILES="$PROFILE"
-        log "Using profiles: $PROFILE"
+    resolve_compose_profiles
+    if [ -n "${COMPOSE_PROFILES:-}" ]; then
+        log "Using profiles: $COMPOSE_PROFILES"
+    else
+        log "Using core stack (no optional profiles)"
     fi
 
     # no_cache / pull come from docker-compose.yml via DOCKER_BUILD_* env
@@ -561,9 +778,7 @@ deploy_services() {
         COMPOSE_FILES="$COMPOSE_FILES -f docker-compose.dev.yml"
     fi
     
-    if [ -n "$PROFILE" ]; then
-        export COMPOSE_PROFILES="$PROFILE"
-    fi
+    resolve_compose_profiles
 
     # Images were just built; avoid a second cached rebuild that would undo --no-cache.
     # Still pass --build when cache is allowed so plain code changes are picked up.
@@ -618,8 +833,12 @@ show_status() {
         echo "  API Docs:     http://localhost:4001/docs"
         echo "  Browser API:  ${public_api}  (inlined into frontend build)"
     fi
-    
-    echo "  Redis:        localhost:6379"
+
+    if using_redis_profile; then
+        echo "  Redis:        localhost:6379  (profile: redis|default)"
+    else
+        echo "  Redis:        (not started — use -p redis or -p default)"
+    fi
 }
 
 cleanup_on_exit() {
@@ -636,11 +855,22 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         -p|--profile)
-            PROFILE="$2"
+            if [ -z "${2:-}" ]; then
+                error "Option $1 requires a value (nginx|redis|default)"
+            fi
+            if [ -n "${PROFILE:-}" ]; then
+                PROFILE="${PROFILE},$2"
+            else
+                PROFILE="$2"
+            fi
             shift 2
             ;;
-        -r|--rebuild)
-            REBUILD=true
+        -r|--rebuild|--no-cache)
+            CACHE_MODE="nocache"
+            shift
+            ;;
+        -c|--cache)
+            CACHE_MODE="cache"
             shift
             ;;
         -u|--pull)

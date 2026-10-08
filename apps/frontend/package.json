@@ -1,6 +1,6 @@
 {
   "name": "@domainpeek/frontend",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "DomainPeek Frontend - Interactive domain analysis dashboard with D3.js visualizations",
   "private": true,
   "scripts": {

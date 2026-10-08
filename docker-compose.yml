@@ -16,12 +16,14 @@ services:
       - NODE_ENV=production
       - PORT=4001
       - LOG_LEVEL=info
-      # Redis (started with the default stack)
+      # Redis (profile: redis or default) — memory fallback if Redis is not running
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       - REDIS_TTL_SECONDS=${REDIS_TTL_SECONDS:-3600}
+      - SNAPSHOT_TTL_SECONDS=${SNAPSHOT_TTL_SECONDS:-2592000}
+      - SHARE_TTL_SECONDS=${SHARE_TTL_SECONDS:-604800}
       # Rate limiting
       - RATE_LIMIT_WINDOW_MS=${RATE_LIMIT_WINDOW_MS:-900000}
       - RATE_LIMIT_MAX_REQUESTS=${RATE_LIMIT_MAX_REQUESTS:-100}
@@ -39,6 +41,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+        required: false
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:4001/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
       interval: 30s
@@ -98,7 +101,7 @@ services:
         reservations:
           memory: 256M
 
-  # Redis cache (included in the default stack)
+  # Redis cache — opt-in via profile: redis | default
   redis:
     image: redis:7-alpine
     container_name: domain-analyzer-redis
@@ -128,8 +131,11 @@ services:
           memory: 128M
         reservations:
           memory: 64M
+    profiles:
+      - redis
+      - default
 
-  # Nginx reverse proxy (optional) — Certbot + Cloudflare DNS-01 when env is set
+  # Nginx reverse proxy — opt-in via profile: nginx | default (Certbot + Cloudflare DNS-01)
   nginx:
     build:
       context: ./docker/nginx
@@ -169,9 +175,10 @@ services:
           memory: 128M
         reservations:
           memory: 64M
-    # Only start if nginx profile is enabled
+    # Only start with nginx or default profile
     profiles:
       - nginx
+      - default
 
 
 volumes:

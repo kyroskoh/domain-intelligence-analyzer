@@ -41,15 +41,6 @@ export default function Home() {
             </div>
             
             <div className="flex items-center space-x-2">
-              <a
-                href="https://domainpeek.xyz"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
-              >
-                Live demo
-              </a>
-
               <ThemeToggle />
 
               <RealTimeNotifications monitoredDomain={displayDomain || undefined} />

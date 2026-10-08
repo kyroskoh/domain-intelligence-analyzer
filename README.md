@@ -2,8 +2,6 @@
 
 A production-grade web application that provides comprehensive domain analysis including WHOIS/RDAP registration data, DNS records analysis, security scoring, and interactive visualizations. Built with modern web technologies and designed to be a powerful alternative to services like who.is.
 
-**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
-
 ## 🚀 Features
 
 ### Core Analysis Engine
@@ -82,14 +80,14 @@ domain-intelligence-analyzer/
 
 ## 🚦 Getting Started
 
-Try the hosted app at **[domainpeek.xyz](https://domainpeek.xyz)** or run locally:
+Run locally:
 
 ### Prerequisites
 
 - Node.js >= 22.0.0
 - npm >= 8.0.0
 - Docker & Docker Compose V2 (optional, for local development / production containers)
-- Redis (included in Docker; local npm run falls back to in-memory cache if unset)
+- Redis (Docker profile `redis` or `default`; local npm run falls back to in-memory cache if unset)
 
 If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.docker.com](https://get.docker.com) and add your user to the `docker` group so commands run without `sudo`.
 
@@ -136,16 +134,25 @@ If Docker is missing on a Linux host, `./deploy.sh` can install it via [get.dock
 git clone https://github.com/kyroskoh/domain-intelligence-analyzer.git
 cd domain-intelligence-analyzer
 
-# Recommended: installs Docker if missing, then deploys
-./deploy.sh
+# Recommended (production): Nginx + Redis, API key, pull base images, auto cache
+# Installs Docker if missing. Equivalent profiles: -p nginx -p redis
+./deploy.sh -p default -k -u
 
-# Or manage Compose directly (frontend + backend + Redis)
-docker compose up --build
+# Core only (frontend + backend), or other profiles
+./deploy.sh
+./deploy.sh -p redis
+./deploy.sh -p nginx -k
+
+# Or manage Compose directly
+docker compose up --build                              # core only
+docker compose --profile redis up --build              # + Redis
+docker compose --profile nginx up --build              # + Nginx
+docker compose --profile default up --build            # + Nginx + Redis
 ```
 
 **Development with Docker:**
 ```bash
-# Start in development mode with hot reload
+# Start in development mode with hot reload (core)
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 
 # Or use the deployment script
@@ -157,10 +164,11 @@ docker compose down
 # View logs
 docker compose logs -f
 
-# Optional Nginx reverse proxy (Redis is included by default)
+# Optional profiles: redis | nginx | default (nginx + redis)
 mkdir -p ssl
-./deploy.sh --profile nginx
-# or: docker compose --profile nginx up --build -d
+./deploy.sh -p default -k -u         # recommended production stack
+./deploy.sh -p redis                 # cache / rate-limit / snapshots / share
+./deploy.sh -p nginx -k              # reverse proxy
 ```
 
 For HTTPS with Let's Encrypt (Cloudflare DNS-01; Alpine package `certbot-dns-cloudflare`), set in `.env` before starting nginx:
@@ -177,12 +185,12 @@ See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md#sslhttps-setup) for full TLS s
 **Available services:**
 - Frontend: `http://localhost:4000`
 - Backend API: `http://localhost:4001`
-- Redis: `localhost:6379`
+- Redis: `localhost:6379` (with `-p redis` or `-p default`)
 - API Documentation: `http://localhost:4001/docs`
 - Health Checks: `http://localhost:4000/api/health` & `http://localhost:4001/health`
-- With nginx profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
+- With nginx / default profile: `http://localhost/` (port 80) and `https://localhost/` (port 443; LE or `./ssl` certs)
 
-For a public VPS, `./deploy.sh` auto-fills `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` (`https://$DOMAIN_NAME` with `-p nginx`, otherwise `http://<ip>:4001`) and passes them as frontend build args. It also merges `CORS_ORIGINS` for localhost, **domainpeek.xyz**, and the host IPv4 from `ip a`. Override with `PUBLIC_API_URL=...`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
+For a public VPS, `./deploy.sh` auto-fills `NEXT_PUBLIC_API_BASE_URL` / `NEXT_PUBLIC_API_URL` (`https://$DOMAIN_NAME` with `-p nginx` or `-p default`, otherwise `http://<ip>:4001`) and passes them as frontend build args. It also merges `CORS_ORIGINS` for localhost, **domainpeek.xyz**, and the host IPv4 from `ip a`. Override with `PUBLIC_API_URL=...`. See [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md).
 
 ### Docker Troubleshooting
 
@@ -271,14 +279,15 @@ Visit `http://localhost:4000/test-charts` to test all visualization components w
 ### API Usage
 
 ```bash
-# Analyze a domain
+# Analyze a domain (also persists a Redis snapshot when Redis is up)
 curl -X GET "http://localhost:4001/api/analyze/example.com"
+
+# Snapshot history / temporary share link
+curl -X GET "http://localhost:4001/api/history/example.com"
+curl -X POST "http://localhost:4001/api/share" -H "Content-Type: application/json" -d "{\"domain\":\"example.com\"}"
 
 # Get DNS records only
 curl -X GET "http://localhost:4001/api/dns/example.com"
-
-# Export analysis as PDF
-curl -X GET "http://localhost:4001/api/export/example.com.pdf"
 ```
 
 ### API Documentation
@@ -493,8 +502,8 @@ services:
 
 **Key Docker Features:**
 - **Node.js 22 LTS**: Frontend and backend images use `node:22-alpine`
-- **Redis by default**: Cache service is part of the core stack (`REDIS_URL=redis://redis:6379`); nginx remains an opt-in profile
-- **Build cache controls**: Compose `no_cache` / `pull` via `DOCKER_BUILD_NO_CACHE` and `DOCKER_BUILD_PULL`; `./deploy.sh -r` / `-u`, or auto no-cache when lockfiles/Dockerfiles change (`.docker-build-fingerprint`)
+- **Optional profiles**: `redis` (cache / rate-limit / snapshots / share), `nginx` (reverse proxy), `default` (nginx + redis); core stack is frontend + backend; `./deploy.sh` autofills Redis env when missing
+- **Smart build cache**: `./deploy.sh` auto no-cache on Dockerfile/lockfile/compose changes; cached rebuild for source/`NEXT_PUBLIC_*`; override with `-r`/`--no-cache` or `-c`/`--cache` (`-u` pulls base images)
 - **Default Networking**: Uses Docker's default bridge network to avoid iptables issues on Windows
 - **Health Checks**: Custom Node.js-based health checks for better reliability
 - **Service Communication**: Browser calls the public API origin (`NEXT_PUBLIC_API_*`); container health uses `INTERNAL_API_URL=http://backend:4001`
@@ -515,28 +524,29 @@ npm run start
 ### Docker Production
 
 ```bash
-# Core stack (frontend + backend + Redis)
-docker compose up --build -d
-
-# Or use the automated deployment script
-./deploy.sh --environment production
-
-# With optional Nginx — not included unless profiled
+# Recommended (production): Nginx + Redis + API key + pull bases + auto cache
 mkdir -p ssl
-./deploy.sh --profile nginx
+./deploy.sh -p default -k -u
+
+# Core only / other profiles
+docker compose up --build -d
+./deploy.sh -p redis
+./deploy.sh -p nginx -k
+# equivalent full stack without -k/-u: ./deploy.sh -p default
+# or: docker compose --profile default up --build -d
 
 # Verify deployment health
 curl http://localhost:4000/api/health
 curl http://localhost:4001/health
-# With nginx profile:
+# With nginx|default profile:
 curl http://localhost/health
 ```
 
 **Production notes:**
 - `./deploy.sh` auto-fills `NEXT_PUBLIC_API_*` (build args) and merges `CORS_ORIGINS`
 - Optional overrides: `PUBLIC_API_URL=...`, `PUBLIC_HOST=<ip>`
-- Cold rebuild after dependency bumps: `./deploy.sh -r` (or `npm run docker:build:nocache`); add `-u` to pull newer base images
-- Set `API_KEY` in `.env` before `-p nginx` so nginx and backend share the secret (injected as `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`)
+- Build cache: auto by default; force cold with `-r`/`--no-cache`, force cache with `-c`/`--cache`; add `-u` to pull newer base images
+- Set `API_KEY` in `.env` before `-p nginx` / `-p default` so nginx and backend share the secret (injected as `X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`)
 - Nginx TLS: set `DOMAIN_NAME`, `CERTBOT_EMAIL`, `CLOUDFLARE_API_TOKEN` (optional `CERTBOT_DOMAINS`) for Let's Encrypt via Cloudflare DNS-01
 - On Linux hosts with hung Alpine `apk` during build, configure Docker `mtu: 1400` (see [DOCKER_DEPLOYMENT.md](./DOCKER_DEPLOYMENT.md))
 - Keep `/etc/docker/daemon.json` MTU/DNS settings if they were required on your host
@@ -579,8 +589,6 @@ The application is designed to be deployed on:
 - [x] Complete web interface integration
 - [x] Domain topology network visualizations
 - [x] Security threat analysis and scoring
-- [x] Live demo at [domainpeek.xyz](https://domainpeek.xyz)
-
 ### Phase 2: Advanced Features
 - [x] Interactive D3.js visualizations
 - [x] Advanced export options (multiple formats)
@@ -590,16 +598,17 @@ The application is designed to be deployed on:
 - [x] WHOIS←RDAP date/status/NS enrichment + DD/MMM/YYYY (+ time) with UTC/Local toggle
 - [x] API rate limiting (Express + nginx)
 - [x] API key via nginx (`X-API-Key` + `Authorization: Bearer` + `X-Request-Nonce`); direct `:4001` rejected when `API_KEY` is set
-- [ ] Historical data tracking (persist analysis snapshots; charts currently mock history)
-- [ ] Analysis snapshot store (Redis/DB) for trends, timeline, and future share links
+- [x] Historical data tracking (Redis snapshots; SecurityTrendChart loads `/api/history`)
+- [x] Analysis snapshot store (Redis/DB) for trends, timeline, and future share links
 - [x] Parse RDAP entity vCards in API + UI (contacts not “Unknown”)
 - [x] Map RDAP top-level fields (`ldhName`, `unicodeName`, `port43`, `links`)
 - [x] Fix WHOIS expiry badge for invalid dates; format registrant contact objects
 - [x] Export CSV/PDF include RDAP; align date formatting with UI
 - [x] Prefer `/api/analyze` on dashboard; drop duplicate WHOIS/RDAP/DNS fetches
 - [ ] Real DNSSEC check + SRV lookup in DNS service
-- [ ] Health checks: real Redis ping + WHOIS service probe
-- [ ] Wire Redis store for Express rate limiting (Redis is in the default Docker stack)
+- [x] Health checks: real Redis ping
+- [ ] Health checks: WHOIS service probe
+- [x] Wire Redis store for Express rate limiting (enable with `-p redis` or `-p default`)
 - [x] Trim CORS origin list entries
 - [ ] Frontend unit tests (date utils / enrichment); fix `npm run test:frontend`
 - [ ] SSL/TLS certificate probe (replace mock SSL metrics; score beyond CAA)
@@ -612,7 +621,7 @@ The application is designed to be deployed on:
 - [ ] ASN / IP geolocation
 - [ ] User environment detection (client public IP / ISP)
 - [ ] DKIM selector discovery
-- [ ] Server-backed temporary shareable analysis links
+- [x] Server-backed temporary shareable analysis links
 - [ ] Multi-domain bulk analysis
 - [ ] Custom alerting and webhooks (outbound; in-app Socket.IO alerts already exist)
 - [ ] Integration with external security feeds
@@ -645,7 +654,6 @@ Root `package.json` uses npm `overrides` to pin patched transitive versions (`po
 ## 🙏 Acknowledgments
 
 - Built with inspiration from [who.is](https://who.is)
-- Live demo: [domainpeek.xyz](https://domainpeek.xyz)
 - Uses open-source DNS and WHOIS data sources
 - Leverages [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json) for all RDAP-capable TLDs
 - Community feedback and contributions

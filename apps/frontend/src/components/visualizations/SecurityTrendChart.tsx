@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Shield, TrendingUp, TrendingDown, AlertTriangle } from 'lucide-react';
+import { apiClient, AnalysisSnapshot } from '@/lib/api';
 
 interface SecurityDataPoint {
   date: Date;
@@ -24,6 +25,52 @@ interface SecurityTrendChartProps {
   className?: string;
 }
 
+function snapshotToPoint(snapshot: AnalysisSnapshot): SecurityDataPoint {
+  return {
+    date: new Date(snapshot.analyzedAt),
+    overallScore: snapshot.overallScore,
+    dnsScore: snapshot.dnsScore,
+    registrationScore: snapshot.registrationScore,
+    rdapScore: snapshot.rdapScore,
+    riskLevel: snapshot.riskLevel,
+    events: snapshot.events || [],
+  };
+}
+
+function currentSecurityPoint(securityData: any): SecurityDataPoint | null {
+  if (!securityData?.overallScore && securityData?.overallScore !== 0) {
+    return null;
+  }
+  const overallScore = securityData.overallScore;
+  const dnsScore =
+    securityData?.breakdown?.find((b: { category: string }) =>
+      b.category.toLowerCase().includes('dns')
+    )?.score ?? overallScore;
+  const registrationScore =
+    securityData?.breakdown?.find((b: { category: string }) =>
+      b.category.toLowerCase().includes('registration')
+    )?.score ?? overallScore;
+  const rdapScore =
+    securityData?.breakdown?.find((b: { category: string }) =>
+      b.category.toLowerCase().includes('rdap')
+    )?.score ?? overallScore;
+
+  let riskLevel: SecurityDataPoint['riskLevel'] = 'low';
+  if (overallScore < 40) riskLevel = 'critical';
+  else if (overallScore < 60) riskLevel = 'high';
+  else if (overallScore < 80) riskLevel = 'medium';
+
+  return {
+    date: new Date(),
+    overallScore,
+    dnsScore,
+    registrationScore,
+    rdapScore,
+    riskLevel,
+    events: [],
+  };
+}
+
 export function SecurityTrendChart({ 
   domain, 
   securityData, 
@@ -33,75 +80,61 @@ export function SecurityTrendChart({
   const [timeRange, setTimeRange] = useState<'7d' | '30d' | '90d' | '1y'>('30d');
   const [selectedMetric, setSelectedMetric] = useState<'overall' | 'dns' | 'registration' | 'rdap'>('overall');
   const [trendData, setTrendData] = useState<SecurityDataPoint[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Get theme-aware colors that update when theme changes
   const colors = useChartColors();
 
-  // Generate mock historical data (in real app, this would come from API)
+  // Load persisted snapshots from Redis-backed history API
   useEffect(() => {
-    const generateTrendData = () => {
-      const data: SecurityDataPoint[] = [];
-      const now = new Date();
-      const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
-      
-      // Current security data as baseline
-      const currentScore = securityData?.overallScore || 75;
-      const currentDnsScore = securityData?.breakdown?.find((b: any) => 
-        b.category.toLowerCase().includes('dns')
-      )?.score || 60;
-      const currentRegScore = securityData?.breakdown?.find((b: any) => 
-        b.category.toLowerCase().includes('registration')
-      )?.score || 85;
+    let cancelled = false;
 
-      for (let i = days; i >= 0; i--) {
-        const date = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-        
-        // Add some realistic variance to scores over time
-        const variance = (Math.random() - 0.5) * 20;
-        const trendFactor = i / days; // Slight improvement over time
-        
-        const overallScore = Math.max(0, Math.min(100, 
-          currentScore + variance + (trendFactor * 10)
-        ));
-        
-        const dnsScore = Math.max(0, Math.min(100, 
-          currentDnsScore + variance + (trendFactor * 5)
-        ));
-        
-        const registrationScore = Math.max(0, Math.min(100, 
-          currentRegScore + (variance * 0.5) // Registration scores are more stable
-        ));
-
-        // Determine risk level based on overall score
-        let riskLevel: 'low' | 'medium' | 'high' | 'critical' = 'low';
-        if (overallScore < 40) riskLevel = 'critical';
-        else if (overallScore < 60) riskLevel = 'high';
-        else if (overallScore < 80) riskLevel = 'medium';
-
-        // Generate some mock events
-        const events: string[] = [];
-        if (Math.random() < 0.1) events.push('DNSSEC status changed');
-        if (Math.random() < 0.05) events.push('Certificate updated');
-        if (Math.random() < 0.03) events.push('Suspicious activity detected');
-
-        data.push({
-          date,
-          overallScore: Math.round(overallScore),
-          dnsScore: Math.round(dnsScore),
-          registrationScore: Math.round(registrationScore),
-          rdapScore: Math.round(currentScore + variance),
-          riskLevel,
-          events
-        });
+    const load = async () => {
+      if (!domain) {
+        setTrendData([]);
+        return;
       }
-      
-      return data;
+
+      setLoadingHistory(true);
+      try {
+        const days =
+          timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : timeRange === '90d' ? 90 : 365;
+        const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+        const history = await apiClient.getHistory(domain, 100);
+        if (cancelled) return;
+
+        const fromApi = (history.snapshots || [])
+          .map(snapshotToPoint)
+          .filter((p) => p.date.getTime() >= cutoff)
+          .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        // Include the live analysis point when history is sparse
+        const live = currentSecurityPoint(securityData);
+        if (live && fromApi.length === 0) {
+          setTrendData([live]);
+        } else if (live && fromApi.length > 0) {
+          const last = fromApi[fromApi.length - 1];
+          const sameBucket =
+            Math.abs(last.date.getTime() - live.date.getTime()) < 60_000 &&
+            last.overallScore === live.overallScore;
+          setTrendData(sameBucket ? fromApi : [...fromApi, live]);
+        } else {
+          setTrendData(fromApi);
+        }
+      } catch {
+        if (cancelled) return;
+        const live = currentSecurityPoint(securityData);
+        setTrendData(live ? [live] : []);
+      } finally {
+        if (!cancelled) setLoadingHistory(false);
+      }
     };
 
-    if (securityData) {
-      setTrendData(generateTrendData());
-    }
-  }, [securityData, timeRange]);
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [domain, securityData, timeRange]);
 
   // D3 Line Chart
   useEffect(() => {
@@ -440,8 +473,10 @@ export function SecurityTrendChart({
           {trendData.length === 0 && (
             <div className="text-center py-8" style={{ color: colors.textSecondary }}>
               <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
-              <p>No security trend data available</p>
-              <p className="text-sm">Provide security analysis data to see trends</p>
+              <p>{loadingHistory ? 'Loading history…' : 'No security trend data available'}</p>
+              <p className="text-sm">
+                Analyze this domain again over time to build Redis-backed history
+              </p>
             </div>
           )}
         </CardContent>

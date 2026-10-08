@@ -2,8 +2,6 @@
 
 Next.js 15 App Router UI for DomainPeek — domain search, WHOIS/RDAP/DNS panels (single `/api/analyze` fetch), RDAP contacts/DNSSEC, live DNS alerts, security scoring, theme-aware D3 visualizations, and JSON/CSV/PDF export with UI-aligned dates.
 
-**Live demo:** [https://domainpeek.xyz](https://domainpeek.xyz)
-
 ## Getting Started
 
 From the monorepo root:

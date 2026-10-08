@@ -4,6 +4,7 @@ import { WhoisService } from './whois/WhoisService';
 import { DnsService } from './dns/DnsService';
 import { RdapService } from './rdap/RdapService';
 import { CacheService } from './cache/CacheService';
+import { snapshotStore } from './cache/SnapshotStore';
 import { SecurityAnalysisService } from './security/SecurityAnalysisService';
 import { 
   DomainAnalysisRequest, 
@@ -159,6 +160,12 @@ export class DomainAnalysisService {
 
       if ((response.whois || response.rdap || response.dns) && !rdapTransientFailure) {
         await this.cacheService.set(cacheKey, response);
+        // Persist compact history snapshot (no-op when Redis is down)
+        try {
+          await snapshotStore.save(response);
+        } catch (error) {
+          logger.warn(`Snapshot persist failed for ${domain}:`, error);
+        }
       }
 
       logger.info(`Completed domain analysis for ${domain}`, {

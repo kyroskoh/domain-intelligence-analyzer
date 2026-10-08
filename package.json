@@ -1,6 +1,6 @@
 {
   "name": "domainpeek",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Production-grade DomainPeek with WHOIS/RDAP/DNS analysis, interactive D3.js visualizations, and comprehensive security scoring",
   "keywords": ["domain", "whois", "rdap", "dns", "security", "analysis", "visualization", "d3", "threejs", "nextjs"],
   "repository": {
